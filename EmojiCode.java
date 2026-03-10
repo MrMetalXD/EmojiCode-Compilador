@@ -456,25 +456,24 @@ public class EmojiCode {
 
     //ARBOL SINTACTICO (AST)
     static abstract class Stmt { //CLASE ABSTRACTA PARA MANEJAR LAS INSTRUCCIONES DE MANERA UNIFORME
+        int line;
     }
 
     static class StmtPrint extends Stmt { //REPRESENTA UNA INSTRUCCION DE IMPRESION
-
         Expr value; //EXPRESION QUE SE VA A IMPRIMIR
-
-        StmtPrint(Expr v) { //GUARDA EL VALOR A IMPRIMIR
+        StmtPrint(Expr v, int ln) { //GUARDA EL VALOR A IMPRIMIR
             value = v;
+            line = ln;
         }
     }
 
     //REPRESENTA UNA INSTRUCCION DE LECTURA
     static class StmtRead extends Stmt {
-
         String name;
-
         //ASIGAN EL NOMBRE DE LA VARIABLE
-        StmtRead(String n) {
+        StmtRead(String n, int ln) {
             name = n;
+            line = ln;
         }
 
     }
@@ -486,9 +485,10 @@ public class EmojiCode {
         Expr expr;      //EXPRESION A EVALUAR
 
         //CONSTRUYE LA ASIGNACION
-        StmtAssign(String n, Expr e) {
+        StmtAssign(String n, Expr e, int ln) {
             name = n;
             expr = e;
+            line = ln;
         }
     }
 
@@ -500,10 +500,11 @@ public class EmojiCode {
         List<Stmt> elseBranch;  //INSTRUCCIONES SI LA CONDICION ES FASA
 
         //CONSTRUYE LA ESTRUCTURA CONDICIONAL
-        StmtIf(Expr c, List<Stmt> t, List<Stmt> e) {
+        StmtIf(Expr c, List<Stmt> t, List<Stmt> e, int ln) {
             condition = c;
             thenBranch = t;
             elseBranch = e;
+            line = ln;
         }
     }
 
@@ -513,9 +514,10 @@ public class EmojiCode {
         List<Stmt> body;//INSTUCCIONES QUE SE REPITEN
 
         //CONSTRUYE EL CICLO
-        StmtWhile(Expr c, List<Stmt> b) {
+        StmtWhile(Expr c, List<Stmt> b, int ln) {
             condition = c;
             body = b;
+            line = ln;
         }
     }
 
@@ -523,7 +525,7 @@ public class EmojiCode {
 //EXPRESIONES
     //CLASE BASE
     static abstract class Expr {
-
+        int line;
     }
 
     static class ExprNumber extends Expr { //REPRESENTA UN NUMERO LITERAL
@@ -531,8 +533,9 @@ public class EmojiCode {
         double value;   //NUMERO
 
         //GUARDA EL NUMERO
-        ExprNumber(double v) {
+        ExprNumber(double v, int ln) {
             value = v;
+            line = ln;
         }
     }
 
@@ -541,8 +544,9 @@ public class EmojiCode {
         String name;    //NOMBRE
 
         //GUARDA EL NOMBRE
-        ExprVar(String n) {
+        ExprVar(String n, int ln) {
             name = n;
+            line = ln;
         }
     }
 
@@ -552,10 +556,11 @@ public class EmojiCode {
         String op;  //OPERADOR
         Expr right; //OPERADOR DERECHO
 
-        ExprBinary(Expr l, String o, Expr r) {  //CONSTUYE LA EXPRESION BINARIA
+        ExprBinary(Expr l, String o, Expr r, int ln) {  //CONSTUYE LA EXPRESION BINARIA
             left = l;
             op = o;
             right = r;
+            line = ln;
         }
     }
 
@@ -674,8 +679,9 @@ List<Stmt> parseProgram() {
 
             // PRINT 📢
             if (match(TokenType.Imprimir)) {
+                int ln = tokens.get(pos - 1).line; 
                 Expr e = parseExpr();
-                return new StmtPrint(e);
+                return new StmtPrint(e, ln);
             }
 
             // READ 📝
@@ -691,7 +697,7 @@ List<Stmt> parseProgram() {
                     return null;
                 }
                 Token id = advance();
-                return new StmtRead(id.lexeme);
+                return new StmtRead(id.lexeme, id.line);
             }
 
             // ASIGNACIÓN 🔧
@@ -710,12 +716,12 @@ List<Stmt> parseProgram() {
 
                 Token id = advance();
                 Expr expr = parseExpr();
-                return new StmtAssign(id.lexeme, expr);
+                return new StmtAssign(id.lexeme, expr,id.line); //GUARDA LA LINEA DE LA ASIGNACION PARA ERRORES SEMANTICOS FUTUROS
             }
 
             // IF 🥺
             if (match(TokenType.IF)) {
-
+                int ln = tokens.get(pos - 1).line;
                 Expr condition = parseExpr();
                 List<Stmt> thenBranch = new ArrayList<>();
                 List<Stmt> elseBranch = new ArrayList<>();
@@ -752,17 +758,17 @@ List<Stmt> parseProgram() {
 
                     // recuperación
                     if (peek() != null && peek().type == TokenType.Fin) {
-                        return new StmtIf(condition, thenBranch, elseBranch);
+                        return new StmtIf(condition, thenBranch, elseBranch, ln);
                     }
 
                     synchronize();
                 }
-                return new StmtIf(condition, thenBranch, elseBranch);
+                return new StmtIf(condition, thenBranch, elseBranch, ln);
             }
 
             // WHILE 🔄
             if (match(TokenType.WHILE)) {
-
+                int ln = tokens.get(pos - 1).line;
                 Expr condition = parseExpr();
                 List<Stmt> body = new ArrayList<>();
 
@@ -784,13 +790,13 @@ List<Stmt> parseProgram() {
                     ));
 
                     if (peek() != null && peek().type == TokenType.Fin) {
-                        return new StmtWhile(condition, body);
+                        return new StmtWhile(condition, body, ln);
                     }
 
                     synchronize();
                 }
 
-                return new StmtWhile(condition, body);
+                return new StmtWhile(condition, body, ln);
             }
 
             // ERROR
@@ -832,7 +838,7 @@ List<Stmt> parseProgram() {
                 Expr right = parseTerm();
 
                 // AJUSTA AL CONSTRUCTOR REAL DE ExprBinary
-                expr = new ExprBinary(expr, op.lexeme, right);
+                expr = new ExprBinary(expr, op.lexeme, right, op.line);
             }
 
             return expr;
@@ -849,14 +855,14 @@ List<Stmt> parseProgram() {
                     && (peek().type == TokenType.Multiplicacion
                     || peek().type == TokenType.Divicion)) {
 
-                String op = advance().lexeme;
+                Token opToken = advance();
                 Expr right = parseFactor();
 
                 if (right == null) {
                     return null;
                 }
 
-                left = new ExprBinary(left, op, right);
+                left = new ExprBinary(left, opToken.lexeme, right, opToken.line);
             }
             return left;
         }
@@ -877,11 +883,13 @@ List<Stmt> parseProgram() {
             Token t = advance();
 
             if (t.type == TokenType.NUMBER) {
-                return new ExprNumber(Double.parseDouble(t.lexeme));
+                return new ExprNumber(Double.parseDouble(t.lexeme), t.line);
+
             }
 
             if (t.type == TokenType.IDENTIFIER) {
-                return new ExprVar(t.lexeme);
+                return new ExprVar(t.lexeme, t.line);
+
             }
 
             reporter.add(new CompileError(
@@ -898,12 +906,30 @@ List<Stmt> parseProgram() {
     //ANALIZADOR SEMANTICO
     static class SemanticAnalyzer {
 
-        Set<String> variables = new HashSet<>(); //CONJUNTO QUE GUARDA LOS NOMBRES DE LAS VARIBLES DECLARADAS
+        Map<String, Integer> declaradas = new HashMap<>(); //CONJUNTO QUE GUARDA LOS NOMBRES DE LAS VARIBLES DECLARADAS
+        Set<String> usadas = new HashSet<>(); //CONJUNTO QUE GUARDA LOS NOMBRES DE LAS VARIBLES USADAS
 
         //RECIBE EL PROGRAMA COMPLETO YA CONVERTIDO A AST
         void analyze(List<Stmt> program) {
+            if (program == null) {
+                return; // evita errores internos si el parser falló
+            }
+
             for (Stmt s : program) {
                 checkStmt(s);
+            }
+
+                // VERIFICA SI TODAS LAS VARIBLES DECLARADAS FUERON USADAS
+            for (Map.Entry<String, Integer> entry : declaradas.entrySet()) {
+                if (!usadas.contains(entry.getKey())) {
+                    reporter.add(new CompileError(
+                            "Error Semántico",
+                            16,
+                            "Variable sin usar",
+                            "La variable '" + entry.getKey() + "' fue declarada pero nunca fue usada",
+                            entry.getValue()
+                    ));
+                }
             }
         }
 
@@ -912,17 +938,11 @@ List<Stmt> parseProgram() {
             if (s == null) {
                 return; // evita errores internos
             }
-            // VERIFICACA SI LA SENTENCIA ES UNA ASIGNACION
+            // VERIFICA SI LA SENTENCIA ES UNA ASIGNACION
             if (s instanceof StmtAssign sa) {
-
                 // Validar expresión primero
                 checkExpr(sa.expr);
-
-                // Registrar variable si no existe
-                if (!variables.contains(sa.name)) {
-                    variables.add(sa.name);
-                }
-
+                declaradas.put(sa.name, sa.line); //REGISTRA LA VARIABLE COMO DECLARADA
                 return;
             }
 
@@ -930,40 +950,62 @@ List<Stmt> parseProgram() {
             if (s instanceof StmtRead sr) {
 
                 //REVISA SI LA VARIBLE YA EXISTE, Y SI ES ASÍ ES UN ERROR SEMANTICO
-                if (variables.contains(sr.name)) { 
+                if (declaradas.containsKey(sr.name)) { 
                     reporter.add(new CompileError(
-                            "Semántico",
-                            17,
+                            "ErrorSemántico",17,
                             "Variable redeclarada",
                             "La variable '" + sr.name + "' ya existe",
-                            -1
+                            sr.line
                     ));
                     return;
                 }
 
-                variables.add(sr.name);//SI NO EXISTE REGISTRAR CORRECTAMENTE
+                declaradas.put(sr.name, sr.line);//SI NO EXISTE REGISTRAR CORRECTAMENTE
                 return;
             }
 
             // PRINT
             //PARA IMRPIMIR
             if (s instanceof StmtPrint sp) { //SE VALIDA QUE LA INSTRUCCION SEA VALIDA
+                if (sp.value == null) {
+                    reporter.add(new CompileError(
+                            "Error Semántico",14,
+                            "Impresión sin argumento",
+                            "La instrucción 📢 requiere un valor o variable a imprimir",
+                            sp.line
+                    ));
+                    return;
+                }
                 checkExpr(sp.value);
                 return;
             }
 
             // IF
             //ANALIZA UNA ESTRUCUTA CONDICIONAL
-                        if (s instanceof StmtIf si) {
-
-                checkExpr(si.condition);//LA CONDICION DEL IF DEBE SER SEMANTICAMENTE VALIDA
+            if (s instanceof StmtIf si) {
+                if (si.condition == null) {
+                    reporter.add(new CompileError(
+                            "Error Semántico",10,
+                            "Condición vacia en IF",
+                            "La condición del IF (🥺) debe ser una expresión válida",
+                            si.line
+                    ));
+                    return;
+                } else {
+                    checkExpr(si.condition);//LA CONDICION DEL IF DEBE SER SEMANTICAMENTE VALIDA
+                }
+                
 
                 for (Stmt st : si.thenBranch) {//ANALIZA TODAS LAS SENTENCIAS DEL BLOQUE THEN
-                    checkStmt(st);
+                    if (st != null) {
+                        checkStmt(st);
+                    }
                 }
 
                 for (Stmt st : si.elseBranch) {//ANALIZA TODAS LAS SENTENCIAS DEL BLOQUE ELSE
-                    checkStmt(st);
+                    if (st != null) {
+                        checkStmt(st);
+                    }
                 }
 
                 return;//TERMINA EL ANALISIS DEL IF
@@ -971,12 +1013,24 @@ List<Stmt> parseProgram() {
 
             // WHILE
             if (s instanceof StmtWhile sw) {
+                if (sw.condition == null) {
+                    reporter.add(new CompileError(
+                            "Error Semántico",11,
+                            "Condición vacia en WHILE",
+                            "La condición del WHILE (🥺) debe ser una expresión válida",
+                            sw.line
+                    ));
+                    return;
+                } else { 
+                    checkExpr(sw.condition); //LA CONDICION DEL CICLO WHILE DEBE SER VALIDA
+                }
 
-                checkExpr(sw.condition); //LA CONDICION DEL CICLO WHILE DEBE SER VALIDA
-
+            
                 //SE ANALIZA TODAS LAS SENTENCIAS DENTRO DEL CICLO
                 for (Stmt st : sw.body) {
-                    checkStmt(st);
+                    if (st != null) {
+                        checkStmt(st);
+                    }
                 }
 
                 return; //FIN DEL WHILE
@@ -1004,19 +1058,30 @@ List<Stmt> parseProgram() {
 
             if (e instanceof ExprVar v) {
 
-                if (!variables.contains(v.name)) {
+                if (!declaradas.containsKey(v.name)) {
                     reporter.add(new CompileError(
-                            "Semántico",
-                            9,
+                            "Error Semántico",9,
                             "Variable no declarada",
                             "La variable '" + v.name + "' se usa antes de ser definida",
-                            -1
+                            v.line
                     ));
+                } else {
+                    usadas.add(v.name); //REGISTRA QUE LA VARIABLE FUE USADA
                 }
                 return;
             }
 
             if (e instanceof ExprBinary b) {
+                if (b.left == null || b.right == null) {
+                    reporter.add(new CompileError(
+                            "Error Semántico",
+                            11,
+                            "Operación incompleta",
+                            "La operación '" + b.op + "' requiere dos operandos",
+                            b.line
+                    ));
+                    return;
+                }
                 checkExpr(b.left);
                 checkExpr(b.right);
                 return;
@@ -1024,11 +1089,11 @@ List<Stmt> parseProgram() {
 
             //VERIFICA SI LA EXPRESION NO ES NUMERO, VARIABLE, U OPERACINON BINARIA
             reporter.add(new CompileError(
-                    "Semántico",
+                    "Error Semántico",
                     11,
                     "Expresión inválida",
                     "No se pudo analizar la expresión",
-                    -1
+                    e.line
             ));
         }
     }
@@ -1073,30 +1138,30 @@ List<Stmt> parseProgram() {
 
             //VERIFICA SI ES UN IF
             if (s instanceof StmtIf si) {
+                if (si.condition == null) return; // PROTECCION POR SI HUBO ERRORES ANTES
 
                 double cond = eval(si.condition);//EVALUA LA CONDICION
 
                 if (cond != 0) {
                     for (Stmt st : si.thenBranch) {
-                        execute(st);
+                        if (st != null) execute(st);
                     }//EJECUTA EL BLOQUE THEN
                 } else {
                     for (Stmt st : si.elseBranch) {
-                        execute(st);
+                        if (st != null) execute(st);
                     }//EJECUTA EL BLOQUE ELSE
                 }
 
                 //WHILE CON PROTECCION DEL BUCLE INFINITO
             } else if (s instanceof StmtWhile sw) {
+                if (sw.condition == null) return; // PROTECCION POR SI HUBO ERRORES ANTES
 
                 //CONTADOR DE SEGURIDAD PARA EVITAR CICLOS INFINITOS
                 int iteraciones = 0;
                 final int MAX_ITERACIONES = 50;
 
                 while (eval(sw.condition) != 0) {//MIENTRAS LA CONDICION SEA VERDADERA
-
                     iteraciones++;
-
                     if (iteraciones > MAX_ITERACIONES) {//DETECTA BUCLE INFINITO
                         //REGISTRA EL ERROR Y DENTIENE EL WHILE
                         reporter.add(new CompileError(
@@ -1104,20 +1169,30 @@ List<Stmt> parseProgram() {
                                 19,
                                 "Bucle infinito detectado",
                                 "El ciclo WHILE excedió " + MAX_ITERACIONES + " iteraciones sin terminar",
-                                -1
+                                sw.line
                         ));
                         return; //DETENER EJECUCION DEL WHULE
                     }
 
                     //EJECUTA EL CUERPO DEL CICLO
                     for (Stmt st : sw.body) {
-                        execute(st);
+                        if (st != null) execute(st);
+                        
                     }
                 }
 
-
                 //EVALUA LA EXPRESION
             } else if (s instanceof StmtPrint sp) {
+                if (sp.value == null) {
+                reporter.add(new CompileError(
+                      "Ejecución",
+                       15,
+                       "Impresión sin argumento",
+                       "La instrucción 📢 requiere un valor o variable a imprimir",
+                        sp.line
+                    ));
+                    return;
+                }
                 //IMPRIME EL RESULTADO EN PANTALLA
                 double v = eval(sp.value);
                 output.append(v + "\n");
@@ -1153,6 +1228,15 @@ List<Stmt> parseProgram() {
 
                 //ASIGNACION
             } else if (s instanceof StmtAssign sa) {
+                if (sa.expr == null) {// PROTECCION POR SI HUBO ERRORES ANTES
+                    reporter.add(new CompileError(
+                            "Ejecución", 7,
+                            "Asignación mal formada",
+                            "La variable '" + sa.name + "' no tiene valor",
+                            sa.line
+                    ));
+                    return;
+                }
                 //EVALUA LA EXPRESION
                 double v = eval(sa.expr);
                 variables.put(sa.name, v);  //ASIGNA EL VALOR DE LA VARIABLE
@@ -1172,6 +1256,16 @@ List<Stmt> parseProgram() {
         }
 
         double eval(Expr e) {
+
+            if (e == null) {
+                reporter.add(new CompileError(
+                        "Ejecución",10,
+                        "Expresión nula",
+                        "Se intentó evaluar una expresión vacía",
+                        -1
+                ));
+                return 0; // valor neutro para continuar
+            }
 
             // NÚMERO
             if (e instanceof ExprNumber n) {
@@ -1220,7 +1314,7 @@ List<Stmt> parseProgram() {
                                     12,
                                     "División entre cero",
                                     "El divisor evaluó a 0",
-                                    -1
+                                    b.line
                             ));
                             return 0; // continuar ejecución
                         }
