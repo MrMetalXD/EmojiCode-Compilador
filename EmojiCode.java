@@ -1,4 +1,5 @@
 //IMPORTS
+
 import java.awt.*;
 import java.util.*;
 import java.util.List;
@@ -18,15 +19,28 @@ public class EmojiCode {
     enum TokenType {
         Inicio, Fin,
         Imprimir, READ,
-        Asignar, Suma, Resta, Multiplicacion, Divicion,
+        Asignar,
+        Suma, Resta, Multiplicacion, Divicion,
+        // COMPARADORES
+        Igual,
+        Diferente,
+        Mayor,
+        Menor,
+        MayorIgual,
+        MenorIgual,
+        // LÓGICOS
+        AND,
+        OR,
+        NOT,
         IDENTIFIER, NUMBER,
-        FinCodigo, IF, ELSE, WHILE, END_BLOCK
-
+        FinCodigo,
+        IF, ELSE, WHILE, END_BLOCK
     }
 
     // TOKEN
     //Representa una unidad léxica:
     static class Token {
+
         TokenType type; //QUE ES
         String lexeme;  //QUE TEXTO O EMOJI LO ORIGINO
         int line;       //EN QUE LINEA APARECE
@@ -126,10 +140,12 @@ public class EmojiCode {
                 public void insertUpdate(DocumentEvent e) {
                     updateNumbers();
                 }
+
                 //CUANDO EL USUARIO BORRA TEXTO
                 public void removeUpdate(DocumentEvent e) {
                     updateNumbers();
                 }
+
                 //CUANDO EL USUARIO MODIFICA TEXTO
                 public void changedUpdate(DocumentEvent e) {
                     updateNumbers();
@@ -156,7 +172,6 @@ public class EmojiCode {
     //LEXER (ANALISIS LEXICO)
     static class Lexer {
 
-        
         List<Token> tokens = new ArrayList<>();
         private final String src;   //CODIGO FUENTE COMPLETO A ANALIZAR
         private int pos = 0;
@@ -246,7 +261,36 @@ public class EmojiCode {
                 if (matchEmoji("🔧", TokenType.Asignar)) {
                     continue;
                 }
+                // COMPARADORES
+                if (matchEmoji("⚖️", TokenType.Igual)) {
+                    continue;
+                }
+                if (matchEmoji("🚫", TokenType.Diferente)) {
+                    continue;
+                }
+                if (matchEmoji("🔼", TokenType.Mayor)) {
+                    continue;
+                }
+                if (matchEmoji("🔽", TokenType.Menor)) {
+                    continue;
+                }
+                if (matchEmoji("⏫", TokenType.MayorIgual)) {
+                    continue;
+                }
+                if (matchEmoji("⏬", TokenType.MenorIgual)) {
+                    continue;
+                }
 
+// OPERADORES LÓGICOS
+                if (matchEmoji("🤝", TokenType.AND)) {
+                    continue;
+                }
+                if (matchEmoji("🔀", TokenType.OR)) {
+                    continue;
+                }
+                if (matchEmoji("❗", TokenType.NOT)) {
+                    continue;
+                }
                 // IDENTIFICADOR :x:
                 if (src.charAt(pos) == ':') {
                     scanIdentifier();
@@ -275,7 +319,7 @@ public class EmojiCode {
         }
 
         // METODOS AUXILIARES
-        boolean matchEmoji(String emoji, TokenType type) { 
+        boolean matchEmoji(String emoji, TokenType type) {
             if (src.startsWith(emoji, pos)) {   //VERIFICA SI EL EMOJI COINCIDE EN LA POSICIÓN ACTUAL
                 tokens.add(new Token(type, emoji, line));
                 pos += emoji.length();
@@ -351,7 +395,6 @@ public class EmojiCode {
 
     } //FIN DEL LEXER?/-----------------------------------
 
-
     // LINE NUMBER VIEW
     // VENTANA DE AYUDA DE ERRORES
     static class ErrorHelpWindow extends JFrame {
@@ -409,7 +452,6 @@ public class EmojiCode {
                     + "   ->El ciclo WHILE no modifica su condición y nunca termina.\n"
                     + "❌ Error 20: No se cerro el bloque\n"
                     + "   ->El bloque nunca fue cerrado.\n"
-
             );
             add(new JScrollPane(t)); //COLOCA EL JTEXTAREA EN UN SCROLL
         }
@@ -447,6 +489,15 @@ public class EmojiCode {
                     + "✖️ Multiplicación\n"
                     + "➗ División\n\n"
                     + "💬 Comentario\n"
+                    + "⚖️ Igual\n"
+                    + "🚫 Diferente\n"
+                    + "🔼 Mayor\n"
+                    + "🔽 Menor\n"
+                    + "⏫ Mayor o igual\n"
+                    + "⏬ Menor o igual\n\n"
+                    + "🤝 AND lógico\n"
+                    + "🔀 OR lógico\n"
+                    + "❗ NOT lógico\n\n"
                     + "   Todo después del emoji es ignorado\n\n"
             );
 
@@ -456,11 +507,14 @@ public class EmojiCode {
 
     //ARBOL SINTACTICO (AST)
     static abstract class Stmt { //CLASE ABSTRACTA PARA MANEJAR LAS INSTRUCCIONES DE MANERA UNIFORME
+
         int line;
     }
 
     static class StmtPrint extends Stmt { //REPRESENTA UNA INSTRUCCION DE IMPRESION
+
         Expr value; //EXPRESION QUE SE VA A IMPRIMIR
+
         StmtPrint(Expr v, int ln) { //GUARDA EL VALOR A IMPRIMIR
             value = v;
             line = ln;
@@ -469,7 +523,9 @@ public class EmojiCode {
 
     //REPRESENTA UNA INSTRUCCION DE LECTURA
     static class StmtRead extends Stmt {
+
         String name;
+
         //ASIGAN EL NOMBRE DE LA VARIABLE
         StmtRead(String n, int ln) {
             name = n;
@@ -521,10 +577,10 @@ public class EmojiCode {
         }
     }
 
-
 //EXPRESIONES
     //CLASE BASE
     static abstract class Expr {
+
         int line;
     }
 
@@ -540,7 +596,7 @@ public class EmojiCode {
     }
 
     static class ExprVar extends Expr { //REPRESENTA EL USO DE UNA VARIABLE
-    
+
         String name;    //NOMBRE
 
         //GUARDA EL NOMBRE
@@ -564,7 +620,6 @@ public class EmojiCode {
         }
     }
 
-    
 // ANALIZADOR (ANALISIS SINTACTICO)
     static class Parser {
 
@@ -627,59 +682,57 @@ public class EmojiCode {
         }
 
         // PROGRAMA
-List<Stmt> parseProgram() {
+        List<Stmt> parseProgram() {
 
-    List<Stmt> program = new ArrayList<>();
+            List<Stmt> program = new ArrayList<>();
 
-    // 🚀 Inicio obligatorio
-    expect(TokenType.Inicio,
-            "❌ Error 4: Inicio de programa no encontrado 🚀");
+            // 🚀 Inicio obligatorio
+            expect(TokenType.Inicio,
+                    "❌ Error 4: Inicio de programa no encontrado 🚀");
 
-    // instrucciones
-    while (peek() != null && peek().type != TokenType.Fin) {
+            // instrucciones
+            while (peek() != null && peek().type != TokenType.Fin) {
 
-        if (peek().type == TokenType.END_BLOCK) {
-            reporter.add(new CompileError(
-                    "Sintáctico",
-                    18,
-                    "Token inesperado",
-                    "🔚 no puede aparecer aquí",
-                    peek().line
-            ));
-            synchronize();
-            continue;
+                if (peek().type == TokenType.END_BLOCK) {
+                    reporter.add(new CompileError(
+                            "Sintáctico",
+                            18,
+                            "Token inesperado",
+                            "🔚 no puede aparecer aquí",
+                            peek().line
+                    ));
+                    synchronize();
+                    continue;
+                }
+
+                program.add(parseStmt());
+            }
+
+            // 🛑 Fin obligatorio
+            expect(TokenType.Fin,
+                    "❌ Error 5: Fin de programa no encontrado 🛑");
+
+            // 🔥🔥🔥 AQUÍ ESTÁ LA CLAVE 🔥🔥🔥
+            // ❌ NO puede haber código después del 🛑
+            if (peek() != null && peek().type != TokenType.FinCodigo) {
+                reporter.add(new CompileError(
+                        "Sintáctico",
+                        6,
+                        "Código después del fin del programa",
+                        "No se permite escribir instrucciones después de 🛑",
+                        peek().line
+                ));
+            }
+
+            return program; //RETORNA
         }
 
-        program.add(parseStmt());
-    }
-
-    // 🛑 Fin obligatorio
-    expect(TokenType.Fin,
-            "❌ Error 5: Fin de programa no encontrado 🛑");
-
-    // 🔥🔥🔥 AQUÍ ESTÁ LA CLAVE 🔥🔥🔥
-    // ❌ NO puede haber código después del 🛑
-    if (peek() != null && peek().type != TokenType.FinCodigo) {
-        reporter.add(new CompileError(
-                "Sintáctico",
-                6,
-                "Código después del fin del programa",
-                "No se permite escribir instrucciones después de 🛑",
-                peek().line
-        ));
-    }
-
-    return program; //RETORNA
-}
-
-
-        
         // DECLARACIONES
         Stmt parseStmt() {
 
             // PRINT 📢
             if (match(TokenType.Imprimir)) {
-                int ln = tokens.get(pos - 1).line; 
+                int ln = tokens.get(pos - 1).line;
                 Expr e = parseExpr();
                 return new StmtPrint(e, ln);
             }
@@ -716,7 +769,7 @@ List<Stmt> parseProgram() {
 
                 Token id = advance();
                 Expr expr = parseExpr();
-                return new StmtAssign(id.lexeme, expr,id.line); //GUARDA LA LINEA DE LA ASIGNACION PARA ERRORES SEMANTICOS FUTUROS
+                return new StmtAssign(id.lexeme, expr, id.line); //GUARDA LA LINEA DE LA ASIGNACION PARA ERRORES SEMANTICOS FUTUROS
             }
 
             // IF 🥺
@@ -813,31 +866,25 @@ List<Stmt> parseProgram() {
 
         // EXPRESIONES
         Expr parseExpr() {
+
             Expr expr = parseTerm();
 
             while (peek() != null
-                    && (peek().type == TokenType.Suma || peek().type == TokenType.Resta)) {
+                    && (peek().type == TokenType.Suma
+                    || peek().type == TokenType.Resta
+                    || peek().type == TokenType.Igual
+                    || peek().type == TokenType.Diferente
+                    || peek().type == TokenType.Mayor
+                    || peek().type == TokenType.Menor
+                    || peek().type == TokenType.MayorIgual
+                    || peek().type == TokenType.MenorIgual
+                    ||peek().type == TokenType.AND      // ← AGREGAR
+                     ||peek().type == TokenType.OR)) {
 
-                Token op = advance(); // operador  o 
-
-                if (peek() == null
-                        || peek().type == TokenType.Fin
-                        || peek().type == TokenType.END_BLOCK) {
-
-                    reporter.add(new CompileError(
-                            "Sintáctico",
-                            11,
-                            "Expresión inválida",
-                            "Token inesperado '" + op.lexeme + "'",
-                            op.line
-                    ));
-                    return null;
-
-                }
+                Token op = advance();
 
                 Expr right = parseTerm();
 
-                // AJUSTA AL CONSTRUCTOR REAL DE ExprBinary
                 expr = new ExprBinary(expr, op.lexeme, right, op.line);
             }
 
@@ -919,7 +966,7 @@ List<Stmt> parseProgram() {
                 checkStmt(s);
             }
 
-                // VERIFICA SI TODAS LAS VARIBLES DECLARADAS FUERON USADAS
+            // VERIFICA SI TODAS LAS VARIBLES DECLARADAS FUERON USADAS
             for (Map.Entry<String, Integer> entry : declaradas.entrySet()) {
                 if (!usadas.contains(entry.getKey())) {
                     reporter.add(new CompileError(
@@ -940,9 +987,14 @@ List<Stmt> parseProgram() {
             }
             // VERIFICA SI LA SENTENCIA ES UNA ASIGNACION
             if (s instanceof StmtAssign sa) {
-                // Validar expresión primero
+
+                if (!declaradas.containsKey(sa.name)) {
+                    declaradas.put(sa.name, sa.line);
+                }else{
+                    usadas.add(sa.name);
+                }
+
                 checkExpr(sa.expr);
-                declaradas.put(sa.name, sa.line); //REGISTRA LA VARIABLE COMO DECLARADA
                 return;
             }
 
@@ -950,9 +1002,9 @@ List<Stmt> parseProgram() {
             if (s instanceof StmtRead sr) {
 
                 //REVISA SI LA VARIBLE YA EXISTE, Y SI ES ASÍ ES UN ERROR SEMANTICO
-                if (declaradas.containsKey(sr.name)) { 
+                if (declaradas.containsKey(sr.name)) {
                     reporter.add(new CompileError(
-                            "ErrorSemántico",17,
+                            "ErrorSemántico", 17,
                             "Variable redeclarada",
                             "La variable '" + sr.name + "' ya existe",
                             sr.line
@@ -969,7 +1021,7 @@ List<Stmt> parseProgram() {
             if (s instanceof StmtPrint sp) { //SE VALIDA QUE LA INSTRUCCION SEA VALIDA
                 if (sp.value == null) {
                     reporter.add(new CompileError(
-                            "Error Semántico",14,
+                            "Error Semántico", 14,
                             "Impresión sin argumento",
                             "La instrucción 📢 requiere un valor o variable a imprimir",
                             sp.line
@@ -985,7 +1037,7 @@ List<Stmt> parseProgram() {
             if (s instanceof StmtIf si) {
                 if (si.condition == null) {
                     reporter.add(new CompileError(
-                            "Error Semántico",10,
+                            "Error Semántico", 10,
                             "Condición vacia en IF",
                             "La condición del IF (🥺) debe ser una expresión válida",
                             si.line
@@ -994,7 +1046,6 @@ List<Stmt> parseProgram() {
                 } else {
                     checkExpr(si.condition);//LA CONDICION DEL IF DEBE SER SEMANTICAMENTE VALIDA
                 }
-                
 
                 for (Stmt st : si.thenBranch) {//ANALIZA TODAS LAS SENTENCIAS DEL BLOQUE THEN
                     if (st != null) {
@@ -1015,17 +1066,16 @@ List<Stmt> parseProgram() {
             if (s instanceof StmtWhile sw) {
                 if (sw.condition == null) {
                     reporter.add(new CompileError(
-                            "Error Semántico",11,
+                            "Error Semántico", 11,
                             "Condición vacia en WHILE",
                             "La condición del WHILE (🥺) debe ser una expresión válida",
                             sw.line
                     ));
                     return;
-                } else { 
+                } else {
                     checkExpr(sw.condition); //LA CONDICION DEL CICLO WHILE DEBE SER VALIDA
                 }
 
-            
                 //SE ANALIZA TODAS LAS SENTENCIAS DENTRO DEL CICLO
                 for (Stmt st : sw.body) {
                     if (st != null) {
@@ -1049,7 +1099,7 @@ List<Stmt> parseProgram() {
 
         void checkExpr(Expr e) {    //ANALIZA UNA EXPRESION
 
-            if (e == null) { 
+            if (e == null) {
                 return; // RECUPERACIUON SEGURA EVITA FALLOS SI HUBO ERRORES ANTES
             }
             if (e instanceof ExprNumber) { //UN NUERO SIEMPRE ES VALIDOS SEMÁNTICAMENTE
@@ -1060,7 +1110,7 @@ List<Stmt> parseProgram() {
 
                 if (!declaradas.containsKey(v.name)) {
                     reporter.add(new CompileError(
-                            "Error Semántico",9,
+                            "Error Semántico", 9,
                             "Variable no declarada",
                             "La variable '" + v.name + "' se usa antes de ser definida",
                             v.line
@@ -1138,24 +1188,30 @@ List<Stmt> parseProgram() {
 
             //VERIFICA SI ES UN IF
             if (s instanceof StmtIf si) {
-                if (si.condition == null) return; // PROTECCION POR SI HUBO ERRORES ANTES
-
+                if (si.condition == null) {
+                    return; // PROTECCION POR SI HUBO ERRORES ANTES
+                }
                 double cond = eval(si.condition);//EVALUA LA CONDICION
 
                 if (cond != 0) {
                     for (Stmt st : si.thenBranch) {
-                        if (st != null) execute(st);
+                        if (st != null) {
+                            execute(st);
+                        }
                     }//EJECUTA EL BLOQUE THEN
                 } else {
                     for (Stmt st : si.elseBranch) {
-                        if (st != null) execute(st);
+                        if (st != null) {
+                            execute(st);
+                        }
                     }//EJECUTA EL BLOQUE ELSE
                 }
 
                 //WHILE CON PROTECCION DEL BUCLE INFINITO
             } else if (s instanceof StmtWhile sw) {
-                if (sw.condition == null) return; // PROTECCION POR SI HUBO ERRORES ANTES
-
+                if (sw.condition == null) {
+                    return; // PROTECCION POR SI HUBO ERRORES ANTES
+                }
                 //CONTADOR DE SEGURIDAD PARA EVITAR CICLOS INFINITOS
                 int iteraciones = 0;
                 final int MAX_ITERACIONES = 50;
@@ -1176,20 +1232,22 @@ List<Stmt> parseProgram() {
 
                     //EJECUTA EL CUERPO DEL CICLO
                     for (Stmt st : sw.body) {
-                        if (st != null) execute(st);
-                        
+                        if (st != null) {
+                            execute(st);
+                        }
+
                     }
                 }
 
                 //EVALUA LA EXPRESION
             } else if (s instanceof StmtPrint sp) {
                 if (sp.value == null) {
-                reporter.add(new CompileError(
-                      "Ejecución",
-                       15,
-                       "Impresión sin argumento",
-                       "La instrucción 📢 requiere un valor o variable a imprimir",
-                        sp.line
+                    reporter.add(new CompileError(
+                            "Ejecución",
+                            15,
+                            "Impresión sin argumento",
+                            "La instrucción 📢 requiere un valor o variable a imprimir",
+                            sp.line
                     ));
                     return;
                 }
@@ -1259,7 +1317,7 @@ List<Stmt> parseProgram() {
 
             if (e == null) {
                 reporter.add(new CompileError(
-                        "Ejecución",10,
+                        "Ejecución", 10,
                         "Expresión nula",
                         "Se intentó evaluar una expresión vacía",
                         -1
@@ -1296,7 +1354,29 @@ List<Stmt> parseProgram() {
                 double r = eval(b.right);
 
                 switch (b.op) {
+                    case "⚖️":
+                        return (l == r) ? 1 : 0;
 
+                    case "🚫":
+                        return (l != r) ? 1 : 0;
+
+                    case "🔼":
+                        return (l > r) ? 1 : 0;
+
+                    case "🔽":
+                        return (l < r) ? 1 : 0;
+
+                    case "⏫":
+                        return (l >= r) ? 1 : 0;
+
+                    case "⏬":
+                        return (l <= r) ? 1 : 0;
+
+                    case "🤝":
+                        return (l != 0 && r != 0) ? 1 : 0;
+
+                    case "🔀":
+                        return (l != 0 || r != 0) ? 1 : 0;
                     case "➕":
                         return l + r;
 
@@ -1347,7 +1427,6 @@ List<Stmt> parseProgram() {
     //IMPRESOR DEL ARBOL DE DERIVACION
     static class ArbolPrinter {
 
-        
         //PUNTO DE ENTRADA
         static String imprimirPrograma(List<Stmt> program) {
             StringBuilder sb = new StringBuilder(); //OBJETO PARA CONTRUIR TEXTO GRANDE
@@ -1400,7 +1479,7 @@ List<Stmt> parseProgram() {
                 sb.append(pref).append("WHILE\n");
                 //CONDICION DEL CICLO
                 sb.append(pref).append("├─ Condición\n");
-               
+
                 imprimirExpr(sw.condition, pref + "│  ", sb);
                 //CUERPO DEL CICLO
                 sb.append(pref).append("└─ Cuerpo\n");
@@ -1490,49 +1569,46 @@ List<Stmt> parseProgram() {
             JButton arbol = new JButton("🌳 Árbol");
             arbol.setEnabled(false);
 
-        // 📂 ABRIR ARCHIVO
-        open.addActionListener(e -> {
-            JFileChooser chooser = new JFileChooser();
-            int result = chooser.showOpenDialog(f);
-    
+            // 📂 ABRIR ARCHIVO
+            open.addActionListener(e -> {
+                JFileChooser chooser = new JFileChooser();
+                int result = chooser.showOpenDialog(f);
 
-            if (result == JFileChooser.APPROVE_OPTION) {
-                try {
-                    java.nio.file.Path path = chooser.getSelectedFile().toPath();
-                    String contenido = java.nio.file.Files.readString(path);
-                    editor.setText(contenido);
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(
-                    f,
-                    "❌ Error al abrir el archivo",
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE
-                    );
+                if (result == JFileChooser.APPROVE_OPTION) {
+                    try {
+                        java.nio.file.Path path = chooser.getSelectedFile().toPath();
+                        String contenido = java.nio.file.Files.readString(path);
+                        editor.setText(contenido);
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(
+                                f,
+                                "❌ Error al abrir el archivo",
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE
+                        );
+                    }
                 }
-            }
-        });
+            });
 
-        // 💾 GUARDAR ARCHIVO
-        save.addActionListener(e -> {
-            JFileChooser chooser = new JFileChooser();
-            int result = chooser.showSaveDialog(f);
+            // 💾 GUARDAR ARCHIVO
+            save.addActionListener(e -> {
+                JFileChooser chooser = new JFileChooser();
+                int result = chooser.showSaveDialog(f);
 
-            if (result == JFileChooser.APPROVE_OPTION) {
-                try {
-                    java.nio.file.Path path = chooser.getSelectedFile().toPath();
-                    java.nio.file.Files.writeString(path, editor.getText());
-                }catch (Exception ex) {
-                    JOptionPane.showMessageDialog(
-                    f,
-                    "❌ Error al guardar el archivo",
-                    "Error",
-                    JOptionPane.ERROR_MESSAGE
-                    );
+                if (result == JFileChooser.APPROVE_OPTION) {
+                    try {
+                        java.nio.file.Path path = chooser.getSelectedFile().toPath();
+                        java.nio.file.Files.writeString(path, editor.getText());
+                    } catch (Exception ex) {
+                        JOptionPane.showMessageDialog(
+                                f,
+                                "❌ Error al guardar el archivo",
+                                "Error",
+                                JOptionPane.ERROR_MESSAGE
+                        );
+                    }
                 }
-            }
-        });
-
-
+            });
 
             help.addActionListener(e
                     -> new ErrorHelpWindow().setVisible(true)
@@ -1605,13 +1681,18 @@ List<Stmt> parseProgram() {
                         return;
                     }
 
+                    /*
                     Interpreter inter = new Interpreter(salida, tabla);
                     inter.exec(programa);
+                    
 
                     if (reporter.hasErrors()) {
                         reporter.print(errores); // <--- FALTA ESTO DESPUÉS DE EXEC
                         return;
                     }
+
+                     */
+                    salida.append("COMPILACIÓN EXITOSA\n");
 
                     // ✅ ejecución correcta → guardar árbol
                     ultimoPrograma[0] = programa;
