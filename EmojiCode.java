@@ -10,6 +10,8 @@ import javax.swing.table.DefaultTableModel;
 
 //CLASE PRINCIPAL
 public class EmojiCode {
+    //TABLA DE SIMBOLOS GLOBAL
+    static TablaSimbolos tablaSimbolos = new TablaSimbolos();
 
     //MANEJO GLOBAL DE ERRORES
     static ErrorReporter reporter = new ErrorReporter();
@@ -508,7 +510,7 @@ public class EmojiCode {
 
         //CREA UNA VENTANA AYUDA DE ERRORES
         ErrorHelpWindow() {
-            setTitle("Ayuda de errores - EmojiLang");
+            setTitle("Ayuda de errores - EmojiCode");
             setSize(520, 420);
             setLocationRelativeTo(null);
 
@@ -516,7 +518,7 @@ public class EmojiCode {
             JTextArea t = new JTextArea();
             t.setEditable(false);
             t.setText(
-                    "ERRORES COMUNES EN EMOJILANG\n\n"
+                    "ERRORES COMUNES EN EMOJICODE\n\n"
                     + "❌ Error 1: Variable no válida \n"
                     + "   ->La variable que estás declarando no es válida o no cumple con las reglas de nuestro compilador. \n"
                     + "❌ Error 2: Símbolo no reconocido\n"
@@ -570,13 +572,13 @@ public class EmojiCode {
         //CONSTUCTOR
         EmojiHelpPanel() {
             setLayout(new BorderLayout());
-            setPreferredSize(new Dimension(260, 100));
-            setBackground(new Color(245, 245, 245));
+            setPreferredSize(new Dimension(320, 100));
+            setBackground(new Color(30, 30, 30));
 
             //AREA DE TEXTO DONDE SE ENCUENTRAN LOS EMOJIS
             JTextArea help = new JTextArea();
             help.setEditable(false);
-            help.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14)); //FUENTE QUE SOPORTA EL USO DE EMOJIS
+            help.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 13)); //FUENTE QUE SOPORTA EL USO DE EMOJIS
             help.setBorder(new EmptyBorder(10, 10, 10, 10));
 
             help.setText(
@@ -1215,6 +1217,7 @@ public class EmojiCode {
                 checkExpr(sd.expr);
                 checkTipoExpr(sd.tipo, sd.expr, sd.line);
                 declaradas.put(sd.name, new VarInfo(sd.tipo, sd.line));
+                tablaSimbolos.agregar(sd.name, sd.tipo, sd.line);
                 return;
             }
             
@@ -1232,9 +1235,12 @@ public class EmojiCode {
                 }
                 // Ya existe, marcar como usada
                 usadas.add(sa.name);
+                int erroresAntes = reporter.errores.size();
                 checkExpr(sa.expr);
-                // Verificar que el nuevo valor sea compatible con el tipo original
-                checkTipoExpr(declaradas.get(sa.name).tipo, sa.expr, sa.line);
+                // Verificar que el nuevo valor sea compatible con el tipo original y si anteriormente se reporto un error no vulve a reportar otro de la misma linea
+                if (reporter.errores.size() == erroresAntes) {
+                    checkTipoExpr(declaradas.get(sa.name).tipo, sa.expr, sa.line);
+                }
                 return;
             }
             
@@ -1339,70 +1345,70 @@ public class EmojiCode {
         
         String tipoExpr(Expr e) {
 
-        if (e instanceof ExprNumber) {
-            return "INT";
-        }
-
-        if (e instanceof ExprString) {
-            return "STRING";
-        }
-
-        if (e instanceof ExprBool) {
-            return "BOOL";
-        }
-
-        if (e instanceof ExprVar v) {
-
-            if (!declaradas.containsKey(v.name)) {
-                return "ERROR";
+            if (e instanceof ExprNumber n) {
+                return (n.value % 1 != 0) ? "FLOAT" : "INT";
             }
 
-            return declaradas.get(v.name).tipo;
-        }
-
-        if (e instanceof ExprBinary b) {
-
-            String izq = tipoExpr(b.left);
-            String der = tipoExpr(b.right);
-
-            if (izq.equals("ERROR") || der.equals("ERROR")) {
-                return "ERROR";
+            if (e instanceof ExprString) {
+                return "STRING";
             }
 
-            // operaciones matemáticas
-            if (b.op.equals("➕") || b.op.equals("➖") ||
-                b.op.equals("✖️") || b.op.equals("✖") ||
-                b.op.equals("➗")) {
+            if (e instanceof ExprBool) {
+                return "BOOL";
+            }
 
-                if ((izq.equals("INT") || izq.equals("FLOAT")) &&
-                    (der.equals("INT") || der.equals("FLOAT"))) {
+            if (e instanceof ExprVar v) {
 
-                    if (izq.equals("FLOAT") || der.equals("FLOAT"))
-                        return "FLOAT";
-
-                    return "INT";
+                if (!declaradas.containsKey(v.name)) {
+                    return "ERROR";
                 }
 
-                return "ERROR";
+                return declaradas.get(v.name).tipo;
             }
 
-            // comparaciones
-            if (b.op.equals("⚖️") || b.op.equals("🚫") ||
-                b.op.equals("🔼") || b.op.equals("🔽") ||
-                b.op.equals("⏫") || b.op.equals("⏬")) {
+            if (e instanceof ExprBinary b) {
 
-                return "BOOL";
+                String izq = tipoExpr(b.left);
+                String der = tipoExpr(b.right);
+
+                if (izq.equals("ERROR") || der.equals("ERROR")) {
+                    return "ERROR";
+                }
+
+                // operaciones matemáticas
+                if (b.op.equals("➕") || b.op.equals("➖")
+                        || b.op.equals("✖️") || b.op.equals("✖")
+                        || b.op.equals("➗")) {
+
+                    if ((izq.equals("INT") || izq.equals("FLOAT"))
+                            && (der.equals("INT") || der.equals("FLOAT"))) {
+
+                        if (izq.equals("FLOAT") || der.equals("FLOAT")) {
+                            return "FLOAT";
+                        }
+
+                        return "INT";
+                    }
+
+                    return "ERROR";
+                }
+
+                // comparaciones
+                if (b.op.equals("⚖️") || b.op.equals("🚫")
+                        || b.op.equals("🔼") || b.op.equals("🔽")
+                        || b.op.equals("⏫") || b.op.equals("⏬")) {
+
+                    return "BOOL";
+                }
+
+                // lógicas
+                if (b.op.equals("🤝") || b.op.equals("🔀")) {
+                    return "BOOL";
+                }
             }
 
-            // lógicas
-            if (b.op.equals("🤝") || b.op.equals("🔀")) {
-                return "BOOL";
-            }
+            return "ERROR";
         }
-
-        return "ERROR";
-    }
-
 
         // Verifica que el tipo de la expresión coincida con el tipo esperado de la variable
         void checkTipoExpr(String tipoEsperado, Expr expr, int line) {
@@ -1423,6 +1429,9 @@ public class EmojiCode {
 
                 return;
             }
+            boolean esperadoNumerico = tipoEsperado.equals("INT") || tipoEsperado.equals("FLOAT");
+            boolean realNumerico = tipoReal.equals("INT") || tipoReal.equals("FLOAT");
+            if(esperadoNumerico && realNumerico) return;
 
             if (!tipoEsperado.equals(tipoReal)) {
 
@@ -1445,7 +1454,7 @@ public class EmojiCode {
             if (e instanceof ExprNumber) { //UN NUERO SIEMPRE ES VALIDOS SEMÁNTICAMENTE
                 return;
             }
-            
+
             //UN STRING LITERAL SIEMPRE ES VALIDO SEMANTICAMENTE
             if (e instanceof ExprString) {
                 return;
@@ -1455,7 +1464,7 @@ public class EmojiCode {
             if (e instanceof ExprBool) {
                 return;
             }
-            
+
             // Verifica si la expresión es una variable
             if (e instanceof ExprVar v) {
                 if (!declaradas.containsKey(v.name)) {
@@ -1467,11 +1476,11 @@ public class EmojiCode {
                     ));
                 } else {
                     usadas.add(v.name); //REGISTRA QUE LA VARIABLE FUE USADA
+                    tablaSimbolos.marcarUsada(v.name);
                 }
                 return;
             }
             // Verifica si la expresión es una operación binaria (dos operandos)
-
             if (e instanceof ExprBinary b) {
                 if (b.left == null || b.right == null) {
                     reporter.add(new CompileError(
@@ -1483,20 +1492,8 @@ public class EmojiCode {
                     ));
                     return;
                 }
-            checkExpr(b.left);
-            checkExpr(b.right);
-
-            String t = tipoExpr(b);
-
-            if (t.equals("ERROR")) {
-                reporter.add(new CompileError(
-                        "Error Semántico",
-                        23,
-                        "Operación inválida",
-                        "Tipos incompatibles en la operación '" + b.op + "'",
-                        b.line
-                ));
-            }
+                checkExpr(b.left);
+                checkExpr(b.right);
                 return;
             }
 
@@ -1801,9 +1798,14 @@ public class EmojiCode {
         }
 
         static void imprimirStmt(Stmt s, String pref, StringBuilder sb) {   //IMPRIME UNA INSTRUCCION DEL PROGRAMA
-
+            if (s instanceof StmtDeclare sd){
+                sb.append(pref).append("Declaración [").append(sd.tipo).append("]\n");
+                sb.append(pref).append("├─ Variable: ").append(sd.name).append("\n");
+                sb.append(pref).append("└─ Valor\n");
+                imprimirExpr(sd.expr, pref + "   ", sb);
+            }
             //ASIGNACION
-            if (s instanceof StmtAssign sa) {
+            else if (s instanceof StmtAssign sa) {
                 sb.append(pref).append("Asignación\n"); //NODO PRINCIPAL
                 sb.append(pref).append("├─ Variable: ").append(sa.name).append("\n");
                 sb.append(pref).append("└─ Expresión\n");
@@ -1869,7 +1871,11 @@ public class EmojiCode {
                 //OPERANDO DERECHO
                 sb.append(pref).append("└─ Derecha\n");
                 imprimirExpr(b.right, pref + "   ", sb);
-            }
+            } else if (e instanceof ExprString es) {
+                sb.append(pref).append("Cadena: ").append(es.value).append("\n");
+            } else if (e instanceof ExprBool eb) {
+                sb.append(pref).append("Bool: ").append(eb.value).append("\n");
+}
         }
     }
 
@@ -1883,14 +1889,14 @@ public class EmojiCode {
             final List<Stmt>[] ultimoPrograma = new List[]{null};
 
             //VENTANA PRINCIPAL
-            JFrame f = new JFrame("EmojiLang IDE Avanzado");
+            JFrame f = new JFrame("EmojiCode IDE Avanzado");
             f.setSize(1000, 750);
             f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             f.setLocationRelativeTo(null);
 
             // EDITOR
             JTextArea editor = new JTextArea();
-            editor.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 19));
+            editor.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
 
             //AGREGAR SCROLL AL EDITOR
             JScrollPane editorScroll = new JScrollPane(editor);
@@ -1904,18 +1910,21 @@ public class EmojiCode {
             //SALIDA DE PRINT
             JTextArea salida = new JTextArea();
             salida.setEditable(false);
+            salida.setFont(new Font("Console", Font.PLAIN, 14));
 
             //MOSTRAR LOS TOKENS DEL LEXER
             JTextArea tokens = new JTextArea();
             tokens.setEditable(false);
+            salida.setFont(new Font("Console", Font.PLAIN, 14));
 
             //MOSTRAR ERRORES
             JTextArea errores = new JTextArea();
             errores.setEditable(false);
+            salida.setFont(new Font("Console", Font.PLAIN, 14));
 
             //MUESTRA VARIABLES Y VALORES EN TIEMPO DE EJECUCION
             JTable tabla = new JTable(
-                    new DefaultTableModel(new Object[]{"Variable", "Valor"}, 0)
+                    new DefaultTableModel(new Object[]{"Nombre", "Tipo","Linea", "Direccion"}, 0)
             );
 
             //CREA PESTAÑAS PARA ORGANIZAR SALUDOS
@@ -1936,7 +1945,8 @@ public class EmojiCode {
             // 📂 ABRIR ARCHIVO
             open.addActionListener(e -> {
                 JFileChooser chooser = new JFileChooser();
-                int result = chooser.showOpenDialog(f);
+                chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos EmojiCode (.ecode)", "ecode"));
+                int result = chooser.showSaveDialog(f);
 
                 if (result == JFileChooser.APPROVE_OPTION) {
                     try {
@@ -1957,12 +1967,18 @@ public class EmojiCode {
             // 💾 GUARDAR ARCHIVO
             save.addActionListener(e -> {
                 JFileChooser chooser = new JFileChooser();
+                chooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Archivos EmojiCode (.ecode)", "ecode"));
                 int result = chooser.showSaveDialog(f);
 
                 if (result == JFileChooser.APPROVE_OPTION) {
                     try {
-                        java.nio.file.Path path = chooser.getSelectedFile().toPath();
-                        java.nio.file.Files.writeString(path, editor.getText());
+                        java.io.File archivo = chooser.getSelectedFile();
+                        String ruta = archivo.getAbsolutePath();
+                        if (!ruta.endsWith(".ecode")) {
+                            ruta = ruta + ".ecode";
+                        }
+                        java.nio.file.Path path2 = java.nio.file.Paths.get(ruta);
+                        java.nio.file.Files.writeString(path2, editor.getText());
                     } catch (Exception ex) {
                         JOptionPane.showMessageDialog(
                                 f,
@@ -1994,7 +2010,7 @@ public class EmojiCode {
                 //AREA DONDE SE MOSTRARA EL ARBOL
                 JTextArea area = new JTextArea();
                 area.setEditable(false);
-                area.setFont(new Font("Consolas", Font.PLAIN, 14));
+                area.setFont(new Font("Dialog", Font.PLAIN, 13));
 
                 //GENERA EL ARBOL DESDE EL AST
                 area.setText(
@@ -2002,7 +2018,9 @@ public class EmojiCode {
                 );
 
                 JScrollPane sp = new JScrollPane(area);
-                sp.setPreferredSize(new Dimension(500, 400));
+                sp.setPreferredSize(new Dimension(500, 600));
+               
+               
 
                 //MUESTRA EL ARBOL EN UN DIALOGO
                 JOptionPane.showMessageDialog(
@@ -2014,14 +2032,20 @@ public class EmojiCode {
             });
 
             run.addActionListener(e -> {
+                
+                
                 //LIMPIAR TODO
                 salida.setText("");
                 tokens.setText("");
                 errores.setText("");
                 reporter.errores.clear();
+                //Limpiar tabla de simbolos
+                tablaSimbolos = new TablaSimbolos();
                 // ⛔ invalidar árbol antes de ejecutar
                 ultimoPrograma[0] = null;
                 arbol.setEnabled(false);
+                
+                
 
                 List<Stmt> programa = null;
 
@@ -2056,8 +2080,22 @@ public class EmojiCode {
                     }
 
                      */
-                    salida.append("COMPILACIÓN EXITOSA\n");
+                    
+                    if(!reporter.hasErrors()){
+                        DefaultTableModel modeloTabla = (DefaultTableModel) tabla.getModel();
+                        modeloTabla.setRowCount(0);
 
+                        for (TablaSimbolos.Simbolo s : tablaSimbolos.simbolos.values()) {
+                            modeloTabla.addRow(new Object[]{
+                                s.nombre,
+                                s.tipo,
+                                s.linea,
+                                s.direccion
+                            });
+                        }
+                        salida.append("COMPILACIÓN EXITOSA\n");                       
+                    }
+                    
                     // ✅ ejecución correcta → guardar árbol
                     ultimoPrograma[0] = programa;
                     arbol.setEnabled(true);
