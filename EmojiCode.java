@@ -119,64 +119,77 @@ public class EmojiCode {
         }
     }
 
-    //CREAR NUMEROS DE LINEA
-    static class LineNumberArea extends JTextArea {
+        //CREAR NUMEROS DE LINEA
+        static class LineNumberArea extends JComponent implements DocumentListener {
 
-        private final JTextArea editor; //HACE REFERENCIA AL EDITOR DE CODIGO REAL
+            private final JTextArea editor;
+            private static final int PADDING = 5;
 
-        //CONSTRUCTOR
-        LineNumberArea(JTextArea editor) {
-            this.editor = editor;
-
-            //SE ENCARGA DE QUE EL USUARIO NO PUEDA INTERACTUAR CON EL AREA DE LOS NUMEROS Y SU DISEÑO
-            setEditable(false);
-            setFocusable(false);
-            setBackground(Color.BLACK);
-            setForeground(Color.GREEN);
-
-            // Igualar fuente del editor
-            setFont(editor.getFont());//USA LA MISMA FUENTE QUE EL EDITOR PARA QUE COINCIDA
-            setLineWrap(false); //EVITA SALTOS DE LINEA AUTOMATICOS
-            setWrapStyleWord(false);    //EVITA SALTOS DE LINEA AUTOMATICOS
-            setBorder(new EmptyBorder(0, 5, 0, 5)); //AGREGA UN MARGEN ENTRE LOS NUMEROS
-
-            //INICIA CON LOS NUMEROS
-            updateNumbers();
-
-            //ESCUCHAR CAMBIOS EN EL EDITOR PARA RECALCULAR LAS LINEAS
-            editor.getDocument().addDocumentListener(new DocumentListener() {
-                //CUANDO EL USUARIO INSERTE TEXTO
-                public void insertUpdate(DocumentEvent e) {
-                    updateNumbers();
-                }
-
-                //CUANDO EL USUARIO BORRA TEXTO
-                public void removeUpdate(DocumentEvent e) {
-                    updateNumbers();
-                }
-
-                //CUANDO EL USUARIO MODIFICA TEXTO
-                public void changedUpdate(DocumentEvent e) {
-                    updateNumbers();
-                }
-            });
-        }
-
-        //RECONSTRUYE LOS NUMEROS DE LINEA
-        void updateNumbers() {
-            int lines = editor.getLineCount();
-            StringBuilder sb = new StringBuilder();
-            for (int i = 1; i <= lines; i++) {
-                sb.append(i).append("\n");
+            LineNumberArea(JTextArea editor) {
+                this.editor = editor;
+                setBackground(Color.BLACK);
+                setForeground(Color.GREEN);
+                setFont(editor.getFont());
+                editor.getDocument().addDocumentListener(this);
             }
-            setText(sb.toString());
 
-            // Ajustar la altura del JTextArea de números de línea
-            int lineHeight = editor.getFontMetrics(editor.getFont()).getHeight();
-            setPreferredSize(new Dimension(40, lineHeight * lines));
-            revalidate();
+            @Override
+            public void insertUpdate(DocumentEvent e)  { repaint(); updateWidth(); }
+            @Override
+            public void removeUpdate(DocumentEvent e)  { repaint(); updateWidth(); }
+            @Override
+            public void changedUpdate(DocumentEvent e) { repaint(); updateWidth(); }
+
+            private void updateWidth() {
+                int lines = editor.getLineCount();
+                int digits = String.valueOf(lines).length();
+                FontMetrics fm = getFontMetrics(getFont());
+                int w = fm.charWidth('0') * digits + PADDING * 2;
+                setPreferredSize(new Dimension(w, getPreferredSize().height));
+                revalidate();
+            }
+
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                g.setColor(Color.BLACK);
+                g.fillRect(0, 0, getWidth(), getHeight());
+
+                g.setColor(Color.GREEN);
+                g.setFont(editor.getFont());
+
+                FontMetrics fm = g.getFontMetrics();
+
+                // Usar la posición Y real de cada línea desde el editor
+                int lineCount = editor.getLineCount();
+                String text = editor.getText();
+                if (text.endsWith("\n") || text.isEmpty()) lineCount = Math.max(1, lineCount - 1);
+
+                int digits = String.valueOf(lineCount).length();
+                int w = fm.charWidth('0') * digits + PADDING;
+
+                int totalHeight = 0;
+                for (int i = 0; i < lineCount; i++) {
+                    try {
+                        Rectangle r = editor.modelToView(
+                            editor.getDocument().getDefaultRootElement()
+                                .getElement(i).getStartOffset()
+                        );
+                        if (r == null) continue;
+                        String num = String.valueOf(i + 1);
+                        int x = w - fm.stringWidth(num);
+                        int y = r.y + fm.getAscent();
+                        g.drawString(num, x, y);
+                        totalHeight = r.y + r.height;
+                    } catch (Exception ex) {
+                        // ignorar
+                    }
+                }
+
+                setPreferredSize(new Dimension(w + PADDING, totalHeight));
+            }
         }
-    }
+
 
     //LEXER (ANALISIS LEXICO)
     static class Lexer {
@@ -193,12 +206,22 @@ public class EmojiCode {
         void scanString() {
             pos++; // saltar la "
             int start = pos;
-            while (pos < src.length() && src.charAt(pos) != '"') {
-                if (src.charAt(pos) == '\n') {
+            
+            while (pos < src.length()) {
+
+                int c = src.codePointAt(pos);
+
+                if (c == '"') {
+                    break;
+                }
+
+                if (c == '\n') {
                     line++;
                 }
-                pos++;
+
+                pos += Character.charCount(c);
             }
+
             if (pos >= src.length()) {
                 reporter.add(new CompileError(
                         "Léxico", 21,
@@ -217,35 +240,43 @@ public class EmojiCode {
         void scan() {
 
             while (pos < src.length()) {
+                int c = src.codePointAt(pos);
 
-                //MANEJO DE NUEVAS LINEAS
-                if (src.charAt(pos) == '\n') {
+                if (c == '\n') {
                     line++;
-                    pos++;
+                    pos += Character.charCount(c);
                     continue;
                 }
 
-                //ESPACIOS
-                if (Character.isWhitespace(src.charAt(pos))) {
-                    pos++;
+                if (Character.isWhitespace(c)) {
+                    pos += Character.charCount(c);
                     continue;
                 }
 
                 //COMENTARIOS 💬
                 if (src.startsWith("💬", pos)) {
-                    while (pos < src.length() && src.charAt(pos) != '\n') {
-                        pos++;
+
+                    while (pos < src.length()) {
+
+                        int c2 = src.codePointAt(pos);
+
+                        if (c2 == '\n') {
+                            break;
+                        }
+
+                        pos += Character.charCount(c2);
                     }
+
                     continue;
                 }
                 // NÚMERO
-                if (Character.isDigit(src.charAt(pos))) {
+                if (Character.isDigit(c)) {
                     scanNumber();
                     continue;
                 }
 
                 // STRING — DEBE ESTAR ANTES DEL ERROR FINAL
-                if (src.charAt(pos) == '"') {
+                if (c == '"') {
                     scanString();
                     continue;
                 }
@@ -335,7 +366,7 @@ public class EmojiCode {
                     continue;
                 }
                 // IDENTIFICADOR :x:
-                if (src.charAt(pos) == ':') {
+                if (c == ':') {
                     scanIdentifier();
                     continue;
                 }
@@ -348,22 +379,9 @@ public class EmojiCode {
                 if (matchEmoji("🔤", TokenType.TIPO_STRING)) {
                     continue;
                 }
-                if (matchEmoji("☑️", TokenType.TIPO_BOOL))
-                    continue;
                 if (matchEmoji("☑️", TokenType.TIPO_BOOL)) continue;  // con variation selector
                 if (matchEmoji("☑",  TokenType.TIPO_BOOL)) continue;
-
-                // NÚMERO
-                if (Character.isDigit(src.charAt(pos))) {
-                    scanNumber();
-                    continue;
-                }
                 
-                // STRING entre comillas "texto"
-                if (src.charAt(pos) == '"') {
-                    scanString();
-                    continue;
-                }
 
                 // ERROR
                 reporter.add(new CompileError(
@@ -373,7 +391,7 @@ public class EmojiCode {
                         "Emoji no reconocido",
                         line
                 ));
-                pos++;
+                pos += Character.charCount(c);
 
             }
 
@@ -445,16 +463,33 @@ public class EmojiCode {
 
             int start = pos;
 
-            while (pos < src.length() && Character.isDigit(src.charAt(pos))) {
-                pos++;
+            while (pos < src.length()) {
+
+                int c = src.codePointAt(pos);
+
+                if (!Character.isDigit(c)) {
+                    break;
+                }
+
+                pos += Character.charCount(c);
             }
             
             // DECIMAL
-            if (pos < src.length() && src.charAt(pos) == '.'
-                    && pos + 1 < src.length() && Character.isDigit(src.charAt(pos + 1))) {
-                pos++; // el punto
-                while (pos < src.length() && Character.isDigit(src.charAt(pos))) {
-                    pos++;
+            if (pos < src.length() && src.codePointAt(pos) == '.'
+                    && pos + 1 < src.length()
+                    && Character.isDigit(src.codePointAt(pos + 1))) {
+
+                pos++;
+
+                while (pos < src.length()) {
+
+                    int c = src.codePointAt(pos);
+
+                    if (!Character.isDigit(c)) {
+                        break;
+                    }
+
+                    pos += Character.charCount(c);
                 }
             }
 
@@ -1862,6 +1897,7 @@ public class EmojiCode {
 
             //AGREGA NUMEROS DE LINEA
             LineNumberArea lineNumbers = new LineNumberArea(editor);
+            editorScroll.getViewport().addChangeListener(e -> lineNumbers.repaint());
             editorScroll.setRowHeaderView(lineNumbers);
 
             // CONSOLAS
