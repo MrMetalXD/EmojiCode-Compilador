@@ -1,4 +1,4 @@
-//IMPORTS
+// Librerias
 
 import java.awt.*;
 import java.util.*;
@@ -34,7 +34,16 @@ public class EmojiCode {
         NOT,
         IDENTIFIER, NUMBER,
         FinCodigo,
-        IF, ELSE, WHILE, END_BLOCK
+        IF, ELSE, WHILE, END_BLOCK,
+        
+        //Tipos de datos
+        TIPO_INT,
+        TIPO_STRING,
+        TIPO_BOOL,
+        TIPO_FLOAT,
+        STRING_LITERAL,
+        BOOL_TRUE,
+        BOOL_FALSE
     }
 
     // TOKEN
@@ -180,6 +189,29 @@ public class EmojiCode {
         Lexer(String s) {
             src = (s == null) ? "" : s;
         }
+        
+        void scanString() {
+            pos++; // saltar la "
+            int start = pos;
+            while (pos < src.length() && src.charAt(pos) != '"') {
+                if (src.charAt(pos) == '\n') {
+                    line++;
+                }
+                pos++;
+            }
+            if (pos >= src.length()) {
+                reporter.add(new CompileError(
+                        "Léxico", 21,
+                        "Cadena no cerrada",
+                        "Falta cerrar la cadena con '\"'",
+                        line
+                ));
+                return;
+            }
+            String value = src.substring(start, pos);
+            tokens.add(new Token(TokenType.STRING_LITERAL, value, line));
+            pos++; // saltar la " de cierre
+        }
 
         //METODO QUE RECORRE EL CODIGO FUENTE CARACTER POR CARACTER
         void scan() {
@@ -204,6 +236,17 @@ public class EmojiCode {
                     while (pos < src.length() && src.charAt(pos) != '\n') {
                         pos++;
                     }
+                    continue;
+                }
+                // NÚMERO
+                if (Character.isDigit(src.charAt(pos))) {
+                    scanNumber();
+                    continue;
+                }
+
+                // STRING — DEBE ESTAR ANTES DEL ERROR FINAL
+                if (src.charAt(pos) == '"') {
+                    scanString();
                     continue;
                 }
 
@@ -281,7 +324,7 @@ public class EmojiCode {
                     continue;
                 }
 
-// OPERADORES LÓGICOS
+                // OPERADORES LÓGICOS
                 if (matchEmoji("🤝", TokenType.AND)) {
                     continue;
                 }
@@ -296,10 +339,29 @@ public class EmojiCode {
                     scanIdentifier();
                     continue;
                 }
+                // TIPOS DE DATOS
+                if (matchEmoji("🔢", TokenType.TIPO_INT))
+                    continue;
+                if (matchEmoji("🌊", TokenType.TIPO_FLOAT)) {
+                    continue;
+                }
+                if (matchEmoji("🔤", TokenType.TIPO_STRING)) {
+                    continue;
+                }
+                if (matchEmoji("☑️", TokenType.TIPO_BOOL))
+                    continue;
+                if (matchEmoji("☑️", TokenType.TIPO_BOOL)) continue;  // con variation selector
+                if (matchEmoji("☑",  TokenType.TIPO_BOOL)) continue;
 
                 // NÚMERO
                 if (Character.isDigit(src.charAt(pos))) {
                     scanNumber();
+                    continue;
+                }
+                
+                // STRING entre comillas "texto"
+                if (src.charAt(pos) == '"') {
+                    scanString();
                     continue;
                 }
 
@@ -377,6 +439,7 @@ public class EmojiCode {
             tokens.add(new Token(TokenType.IDENTIFIER, name, line));
             pos = end + 1;
         }
+        
 
         void scanNumber() {
 
@@ -384,6 +447,15 @@ public class EmojiCode {
 
             while (pos < src.length() && Character.isDigit(src.charAt(pos))) {
                 pos++;
+            }
+            
+            // DECIMAL
+            if (pos < src.length() && src.charAt(pos) == '.'
+                    && pos + 1 < src.length() && Character.isDigit(src.charAt(pos + 1))) {
+                pos++; // el punto
+                while (pos < src.length() && Character.isDigit(src.charAt(pos))) {
+                    pos++;
+                }
             }
 
             tokens.add(new Token(
@@ -499,6 +571,14 @@ public class EmojiCode {
                     + "🔀 OR lógico\n"
                     + "❗ NOT lógico\n\n"
                     + "   Todo después del emoji es ignorado\n\n"
+                    + " TIPOS DE DATOS \n"
+                    + "🔢 :x: 10        Entero\n"
+                    + "🌊 :x: 3.14      Decimal\n"
+                    + "🔤 :x: \"Hola\"    Texto\n"
+                    + "☑️ :x: ✅         Booleano\n\n"
+                    + "── BOOLEANOS ──\n"
+                    + "✅ verdadero\n"
+                    + "❎ falso\n\n"
             );
 
             add(new JScrollPane(help), BorderLayout.CENTER); //AÑADE EL SCROLL SI EL CONTENIDO NO CABE
@@ -509,6 +589,19 @@ public class EmojiCode {
     static abstract class Stmt { //CLASE ABSTRACTA PARA MANEJAR LAS INSTRUCCIONES DE MANERA UNIFORME
 
         int line;
+    }
+    
+    static class StmtDeclare extends Stmt {
+        String tipo;   // "INT", "FLOAT", "STRING", "BOOL"
+        String name;
+        Expr expr;
+
+        StmtDeclare(String tipo, String name, Expr expr, int ln) {
+            this.tipo = tipo;
+            this.name = name;
+            this.expr = expr;
+            this.line = ln;
+        }
     }
 
     static class StmtPrint extends Stmt { //REPRESENTA UNA INSTRUCCION DE IMPRESION
@@ -619,6 +712,22 @@ public class EmojiCode {
             line = ln;
         }
     }
+    
+    static class ExprString extends Expr {
+        String value;
+        ExprString(String v, int ln) {
+            value = v;
+            line = ln;
+        }
+    }
+
+    static class ExprBool extends Expr {
+        boolean value;
+        ExprBool(boolean v, int ln) {
+            value = v;
+            line = ln;
+        }
+    }
 
 // ANALIZADOR (ANALISIS SINTACTICO)
     static class Parser {
@@ -632,8 +741,19 @@ public class EmojiCode {
         }
 
         void synchronize() {
+            int steps = 0;
             while (peek() != null && !isSync(peek())) {
                 advance();
+                
+                if(++steps > 500){
+                    reporter.add(new CompileError(
+                    "Sintáctico", 18,
+                    "Error de recuperación",
+                    "No se pudo recuperar del error sintáctico",
+                    peek() != null ? peek().line : -1
+                    ));
+                    break;
+                }
             }
         }
 
@@ -701,12 +821,16 @@ public class EmojiCode {
                             "🔚 no puede aparecer aquí",
                             peek().line
                     ));
-                    synchronize();
+                    advance();
                     continue;
                 }
-
-                program.add(parseStmt());
+                
+                if (peek().type == TokenType.FinCodigo) break;
+                
+                Stmt s = parseStmt();
+                if (s !=null) program.add(s);
             }
+            
 
             // 🛑 Fin obligatorio
             expect(TokenType.Fin,
@@ -751,6 +875,30 @@ public class EmojiCode {
                 }
                 Token id = advance();
                 return new StmtRead(id.lexeme, id.line);
+            }
+            
+            if (match(TokenType.TIPO_INT) || match(TokenType.TIPO_FLOAT)
+                    || match(TokenType.TIPO_STRING) || match(TokenType.TIPO_BOOL)) {
+
+                Token tipoTok = tokens.get(pos - 1);
+                String tipo = switch (tipoTok.type) {
+                    case TIPO_INT -> "INT";
+                    case TIPO_FLOAT -> "FLOAT";
+                    case TIPO_STRING -> "STRING";
+                    case TIPO_BOOL -> "BOOL";
+                    default -> "UNKNOWN";
+                };
+
+                if (peek() == null || peek().type != TokenType.IDENTIFIER) {
+                    reporter.add(new CompileError("Sintáctico", 7,
+                            "Declaración mal formada", "Falta nombre de variable", tipoTok.line));
+                    synchronize();
+                    return null;
+                }
+
+                Token id = advance();
+                Expr expr = parseExpr();
+                return new StmtDeclare(tipo, id.lexeme, expr, id.line);
             }
 
             // ASIGNACIÓN 🔧
@@ -868,6 +1016,8 @@ public class EmojiCode {
         Expr parseExpr() {
 
             Expr expr = parseTerm();
+            
+            if (expr == null) return null;
 
             while (peek() != null
                     && (peek().type == TokenType.Suma
@@ -884,6 +1034,8 @@ public class EmojiCode {
                 Token op = advance();
 
                 Expr right = parseTerm();
+                
+                if(right == null) return expr;
 
                 expr = new ExprBinary(expr, op.lexeme, right, op.line);
             }
@@ -916,27 +1068,49 @@ public class EmojiCode {
 
         Expr parseFactor() {
 
-            if (peek() == null) {
+            if (peek() == null || peek().type == TokenType.FinCodigo) {
                 reporter.add(new CompileError(
                         "Sintáctico",
                         11,
                         "Expresión incompleta",
                         "Se esperaba un número o variable",
-                        -1
+                       -1
                 ));
                 return null;
             }
-
+            // NO consumir tokens de control como si fueran expresiones
+            TokenType tp = peek().type;
+            if (tp == TokenType.END_BLOCK || tp == TokenType.ELSE
+                    || tp == TokenType.Fin || tp == TokenType.IF
+                    || tp == TokenType.WHILE || tp == TokenType.Imprimir
+                    || tp == TokenType.Asignar || tp == TokenType.READ) {
+                reporter.add(new CompileError(
+                        "Sintáctico", 11,
+                        "Expresión incompleta",
+                        "Se esperaba un número o variable antes de '" + peek().lexeme + "'",
+                        peek().line
+                ));
+                return null;
+            }
+    
             Token t = advance();
 
             if (t.type == TokenType.NUMBER) {
                 return new ExprNumber(Double.parseDouble(t.lexeme), t.line);
 
             }
-
             if (t.type == TokenType.IDENTIFIER) {
                 return new ExprVar(t.lexeme, t.line);
 
+            }
+            if (t.type == TokenType.STRING_LITERAL) {
+                return new ExprString(t.lexeme, t.line);
+            }
+            if (t.type == TokenType.BOOL_TRUE) {
+                return new ExprBool(true, t.line);
+            }
+            if (t.type == TokenType.BOOL_FALSE) {
+                return new ExprBool(false, t.line);
             }
 
             reporter.add(new CompileError(
@@ -952,8 +1126,17 @@ public class EmojiCode {
 
     //ANALIZADOR SEMANTICO
     static class SemanticAnalyzer {
-
-        Map<String, Integer> declaradas = new HashMap<>(); //CONJUNTO QUE GUARDA LOS NOMBRES DE LAS VARIBLES DECLARADAS
+        // CLASE INTERNA QUE SE USA PARA GUARDAR INFORMACION DE UNA VARIABLE
+        static class VarInfo {
+            String tipo;
+            int linea;
+            //RECIBE EL TIPO DE LA VARIABLE Y LA LINEA DONDE APARECE
+            VarInfo(String tipo, int linea) {
+                this.tipo = tipo;
+                this.linea = linea;
+            }
+        }
+        Map<String, VarInfo> declaradas = new HashMap<>(); //CONJUNTO QUE GUARDA LOS NOMBRES DE LAS VARIBLES DECLARADAS
         Set<String> usadas = new HashSet<>(); //CONJUNTO QUE GUARDA LOS NOMBRES DE LAS VARIBLES USADAS
 
         //RECIBE EL PROGRAMA COMPLETO YA CONVERTIDO A AST
@@ -967,14 +1150,14 @@ public class EmojiCode {
             }
 
             // VERIFICA SI TODAS LAS VARIBLES DECLARADAS FUERON USADAS
-            for (Map.Entry<String, Integer> entry : declaradas.entrySet()) {
+            for (Map.Entry<String, VarInfo> entry : declaradas.entrySet()) {
                 if (!usadas.contains(entry.getKey())) {
                     reporter.add(new CompileError(
                             "Error Semántico",
                             16,
                             "Variable sin usar",
                             "La variable '" + entry.getKey() + "' fue declarada pero nunca fue usada",
-                            entry.getValue()
+                            entry.getValue().linea
                     ));
                 }
             }
@@ -985,19 +1168,41 @@ public class EmojiCode {
             if (s == null) {
                 return; // evita errores internos
             }
-            // VERIFICA SI LA SENTENCIA ES UNA ASIGNACION
-            if (s instanceof StmtAssign sa) {
-
-                if (!declaradas.containsKey(sa.name)) {
-                    declaradas.put(sa.name, sa.line);
-                }else{
-                    usadas.add(sa.name);
+            // Verifica si la sentencia es una declaración de variable
+            if (s instanceof StmtDeclare sd) {
+                if (declaradas.containsKey(sd.name)) {
+                    reporter.add(new CompileError("Error Semántico", 17,
+                            "Variable redeclarada",
+                            "La variable '" + sd.name + "' ya fue declarada",
+                            sd.line));
+                    return;
                 }
-
-                checkExpr(sa.expr);
+                checkExpr(sd.expr);
+                checkTipoExpr(sd.tipo, sd.expr, sd.line);
+                declaradas.put(sd.name, new VarInfo(sd.tipo, sd.line));
                 return;
             }
-
+            
+            // Verifica si la sentencia es una asignación de valor a una variable
+            if (s instanceof StmtAssign sa) {
+                if (!declaradas.containsKey(sa.name)) {
+                    // Error: intentar asignar variable no declarada
+                    reporter.add(new CompileError(
+                            "Error Semántico", 9,
+                            "Variable no declarada",
+                            "La variable '" + sa.name + "' no fue declarada con tipo (usa 🔢 🌊 🔤 ☑️)",
+                            sa.line
+                    ));
+                    return;
+                }
+                // Ya existe, marcar como usada
+                usadas.add(sa.name);
+                checkExpr(sa.expr);
+                // Verificar que el nuevo valor sea compatible con el tipo original
+                checkTipoExpr(declaradas.get(sa.name).tipo, sa.expr, sa.line);
+                return;
+            }
+            
             //VERIFICA UNA INSTUCCION DE LECTURA
             if (s instanceof StmtRead sr) {
 
@@ -1012,7 +1217,7 @@ public class EmojiCode {
                     return;
                 }
 
-                declaradas.put(sr.name, sr.line);//SI NO EXISTE REGISTRAR CORRECTAMENTE
+                declaradas.put(sr.name, new VarInfo("INT", sr.line));//SI NO EXISTE REGISTRAR CORRECTAMENTE
                 return;
             }
 
@@ -1096,6 +1301,33 @@ public class EmojiCode {
                     -1
             ));
         }
+        
+        // Verifica que el tipo de la expresión coincida con el tipo esperado de la variable
+        void checkTipoExpr(String tipoEsperado, Expr expr, int line) {
+            if (expr == null) {
+                return;
+            }
+            // Se revisa si la expresión tiene un tipo incompatible con el esperado
+            boolean error = switch (tipoEsperado) {
+                case "INT", "FLOAT" ->
+                    expr instanceof ExprString || expr instanceof ExprBool;
+                case "STRING" ->
+                    expr instanceof ExprNumber || expr instanceof ExprBool;
+                case "BOOL" ->
+                    expr instanceof ExprNumber || expr instanceof ExprString;
+                default ->
+                    false;
+            };
+            // Si hay incompatibilidad de tipos se reporta un error semántico
+            if (error) {
+                reporter.add(new CompileError(
+                        "Error Semántico", 22,
+                        "Tipo incompatible",
+                        "El valor asignado no corresponde al tipo '" + tipoEsperado + "'",
+                        line
+                ));
+            }
+        }
 
         void checkExpr(Expr e) {    //ANALIZA UNA EXPRESION
 
@@ -1105,9 +1337,19 @@ public class EmojiCode {
             if (e instanceof ExprNumber) { //UN NUERO SIEMPRE ES VALIDOS SEMÁNTICAMENTE
                 return;
             }
+            
+            //UN STRING LITERAL SIEMPRE ES VALIDO SEMANTICAMENTE
+            if (e instanceof ExprString) {
+                return;
+            }
 
+            //UN BOOLEANO LITERAL SIEMPRE ES VALIDO SEMANTICAMENTE
+            if (e instanceof ExprBool) {
+                return;
+            }
+            
+            // Verifica si la expresión es una variable
             if (e instanceof ExprVar v) {
-
                 if (!declaradas.containsKey(v.name)) {
                     reporter.add(new CompileError(
                             "Error Semántico", 9,
@@ -1120,6 +1362,7 @@ public class EmojiCode {
                 }
                 return;
             }
+            // Verifica si la expresión es una operación binaria (dos operandos)
 
             if (e instanceof ExprBinary b) {
                 if (b.left == null || b.right == null) {
