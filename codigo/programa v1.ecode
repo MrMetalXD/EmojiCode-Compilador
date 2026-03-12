@@ -1,0 +1,27 @@
+🚀
+🔢 :edad: 20
+🔢 :contador: 5
+🌊 :promedio: 0.0
+🌊 :total: 0.0
+🔤 :mensaje: "Aprobado"
+
+💬 Calculos
+🔧 :total: :edad: ➕ :contador:
+🔧 :promedio: :total: ➗ 2
+
+💬 IF para verificar edad
+🥺 :edad: 🔼 18
+    📢 :mensaje:
+    📢 :promedio:
+😉
+    📢 :edad:
+🔚
+
+💬 WHILE para contar
+🔄 :contador: ⏫ 15
+    📢 :contador:
+    🔧 :contador: :contador: ➖ 1
+🔚
+
+📢 :total:
+🛑

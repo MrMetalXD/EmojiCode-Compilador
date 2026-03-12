@@ -1,0 +1,21 @@
+🚀
+🔢 :x: 10
+🔢 :y: 5
+🔤 :nombre: "Ana"
+🌊 :total: 3.14
+
+💬 ERROR 22 — tipo incompatible
+🔢 :edad: "veinte"
+
+💬 ERROR 23 — STRING en operacion
+🔧 :total: :x: ➕ :nombre:
+
+💬 ERROR 9 — variable no declarada
+🔧 :total: :total: ➕ :z:
+
+💬 ERROR 16 — nunca usada
+🔢 :extra: 99
+
+📢 :x:
+📢 :y:
+🛑
