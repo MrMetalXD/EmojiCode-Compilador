@@ -1,4 +1,4 @@
-// Librerias
+//Librerias
 
 import java.awt.*;
 import java.util.*;
@@ -1302,28 +1302,101 @@ public class EmojiCode {
             ));
         }
         
+        String tipoExpr(Expr e) {
+
+        if (e instanceof ExprNumber) {
+            return "INT";
+        }
+
+        if (e instanceof ExprString) {
+            return "STRING";
+        }
+
+        if (e instanceof ExprBool) {
+            return "BOOL";
+        }
+
+        if (e instanceof ExprVar v) {
+
+            if (!declaradas.containsKey(v.name)) {
+                return "ERROR";
+            }
+
+            return declaradas.get(v.name).tipo;
+        }
+
+        if (e instanceof ExprBinary b) {
+
+            String izq = tipoExpr(b.left);
+            String der = tipoExpr(b.right);
+
+            if (izq.equals("ERROR") || der.equals("ERROR")) {
+                return "ERROR";
+            }
+
+            // operaciones matemáticas
+            if (b.op.equals("➕") || b.op.equals("➖") ||
+                b.op.equals("✖️") || b.op.equals("✖") ||
+                b.op.equals("➗")) {
+
+                if ((izq.equals("INT") || izq.equals("FLOAT")) &&
+                    (der.equals("INT") || der.equals("FLOAT"))) {
+
+                    if (izq.equals("FLOAT") || der.equals("FLOAT"))
+                        return "FLOAT";
+
+                    return "INT";
+                }
+
+                return "ERROR";
+            }
+
+            // comparaciones
+            if (b.op.equals("⚖️") || b.op.equals("🚫") ||
+                b.op.equals("🔼") || b.op.equals("🔽") ||
+                b.op.equals("⏫") || b.op.equals("⏬")) {
+
+                return "BOOL";
+            }
+
+            // lógicas
+            if (b.op.equals("🤝") || b.op.equals("🔀")) {
+                return "BOOL";
+            }
+        }
+
+        return "ERROR";
+    }
+
+
         // Verifica que el tipo de la expresión coincida con el tipo esperado de la variable
         void checkTipoExpr(String tipoEsperado, Expr expr, int line) {
-            if (expr == null) {
+
+            if (expr == null) return;
+
+            String tipoReal = tipoExpr(expr);
+
+            if (tipoReal.equals("ERROR")) {
+
+                reporter.add(new CompileError(
+                        "Error Semántico",
+                        23,
+                        "Operación inválida",
+                        "Tipos incompatibles en la expresión",
+                        line
+                ));
+
                 return;
             }
-            // Se revisa si la expresión tiene un tipo incompatible con el esperado
-            boolean error = switch (tipoEsperado) {
-                case "INT", "FLOAT" ->
-                    expr instanceof ExprString || expr instanceof ExprBool;
-                case "STRING" ->
-                    expr instanceof ExprNumber || expr instanceof ExprBool;
-                case "BOOL" ->
-                    expr instanceof ExprNumber || expr instanceof ExprString;
-                default ->
-                    false;
-            };
-            // Si hay incompatibilidad de tipos se reporta un error semántico
-            if (error) {
+
+            if (!tipoEsperado.equals(tipoReal)) {
+
                 reporter.add(new CompileError(
-                        "Error Semántico", 22,
+                        "Error Semántico",
+                        22,
                         "Tipo incompatible",
-                        "El valor asignado no corresponde al tipo '" + tipoEsperado + "'",
+                        "Se esperaba '" + tipoEsperado +
+                        "' pero la expresión produce '" + tipoReal + "'",
                         line
                 ));
             }
@@ -1375,8 +1448,20 @@ public class EmojiCode {
                     ));
                     return;
                 }
-                checkExpr(b.left);
-                checkExpr(b.right);
+            checkExpr(b.left);
+            checkExpr(b.right);
+
+            String t = tipoExpr(b);
+
+            if (t.equals("ERROR")) {
+                reporter.add(new CompileError(
+                        "Error Semántico",
+                        23,
+                        "Operación inválida",
+                        "Tipos incompatibles en la operación '" + b.op + "'",
+                        b.line
+                ));
+            }
                 return;
             }
 
