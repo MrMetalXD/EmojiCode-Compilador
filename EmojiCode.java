@@ -1785,6 +1785,236 @@ public class EmojiCode {
     }
 
     //IMPRESOR DEL ARBOL DE DERIVACION
+    // =====================================================
+    // GENERADOR DE CÓDIGO INTERMEDIO (CUÁDRUPLOS)
+    // Recorre el AST y genera instrucciones de 3 direcciones
+    // Formato: (operación, argumento1, argumento2, resultado)
+    // =====================================================
+    static class CodigoIntermedio {
+
+        // REPRESENTA UN CUÁDRUPLO: (op, arg1, arg2, resultado)
+        static class Cuadruplo {
+            int numero;     // NÚMERO DE PASO
+            String op;      // OPERACIÓN: +, -, *, /, =, <, >, if_false, goto, label, print, read
+            String arg1;    // PRIMER ARGUMENTO
+            String arg2;    // SEGUNDO ARGUMENTO
+            String result;  // RESULTADO O DESTINO
+
+            Cuadruplo(int n, String op, String arg1, String arg2, String result) {
+                this.numero = n;
+                this.op     = op;
+                this.arg1   = arg1;
+                this.arg2   = arg2;
+                this.result = result;
+            }
+
+            // FORMATO DE IMPRESIÓN DEL CUÁDRUPLO
+            public String toString() {
+                return String.format("%-4d| %-12s| %-10s| %-10s| %-10s",
+                        numero, op, arg1, arg2, result);
+            }
+        }
+
+        List<Cuadruplo> cuadruplos = new ArrayList<>(); // LISTA DE CUÁDRUPLOS GENERADOS
+        int contadorTemp  = 1;  // CONTADOR PARA VARIABLES TEMPORALES t1, t2, t3...
+        int contadorLabel = 1;  // CONTADOR PARA ETIQUETAS L1, L2, L3...
+        int contadorPaso  = 1;  // NÚMERO DE PASO ACTUAL
+
+        // GENERA UN NUEVO NOMBRE DE VARIABLE TEMPORAL
+        String nuevoTemp() {
+            return "t" + contadorTemp++;
+        }
+
+        // GENERA UN NUEVO NOMBRE DE ETIQUETA
+        String nuevaLabel() {
+            return "L" + contadorLabel++;
+        }
+
+        // AGREGA UN CUÁDRUPLO A LA LISTA
+        void emitir(String op, String arg1, String arg2, String result) {
+            cuadruplos.add(new Cuadruplo(contadorPaso++, op, arg1, arg2, result));
+        }
+
+        // PUNTO DE ENTRADA — RECORRE TODO EL PROGRAMA
+        void generar(List<Stmt> program) {
+            if (program == null) return;
+            for (Stmt s : program) {
+                generarStmt(s);
+            }
+        }
+
+        // GENERA CÓDIGO PARA CADA TIPO DE INSTRUCCIÓN
+        void generarStmt(Stmt s) {
+            if (s == null) return;
+
+            // DECLARACIÓN: 🔢 :x: 5  →  (=, 5, -, x)
+            if (s instanceof StmtDeclare sd) {
+                String val = generarExpr(sd.expr);
+                emitir("=", val, "-", sd.name);
+                return;
+            }
+
+            // ASIGNACIÓN: 🔧 :x: expr  →  (=, expr, -, x)
+            if (s instanceof StmtAssign sa) {
+                String val = generarExpr(sa.expr);
+                emitir("=", val, "-", sa.name);
+                return;
+            }
+
+            // LECTURA: 📝 :x:  →  (read, -, -, x)
+            if (s instanceof StmtRead sr) {
+                emitir("read", "-", "-", sr.name);
+                return;
+            }
+
+            // IMPRESIÓN: 📢 :x:  →  (print, x, -, -)
+            if (s instanceof StmtPrint sp) {
+                if (sp.value == null) return;
+                String val = generarExpr(sp.value);
+                emitir("print", val, "-", "-");
+                return;
+            }
+
+            // IF / ELSE
+            // 🥺 condicion
+            //     bloque then
+            // 😉
+            //     bloque else
+            // 🔚
+            if (s instanceof StmtIf si) {
+                String labelElse = nuevaLabel(); // etiqueta para el bloque ELSE
+                String labelFin  = nuevaLabel(); // etiqueta para el fin del IF
+
+                // evalúa la condición
+                String cond = generarExpr(si.condition);
+
+                // si la condición es falsa salta al ELSE
+                emitir("if_false", cond, "-", labelElse);
+
+                // bloque THEN
+                for (Stmt st : si.thenBranch) generarStmt(st);
+
+                // salta al fin (evita ejecutar el ELSE)
+                emitir("goto", "-", "-", labelFin);
+
+                // etiqueta ELSE
+                emitir("label", "-", "-", labelElse);
+
+                // bloque ELSE
+                for (Stmt st : si.elseBranch) generarStmt(st);
+
+                // etiqueta FIN
+                emitir("label", "-", "-", labelFin);
+                return;
+            }
+
+            // WHILE
+            // 🔄 condicion
+            //     cuerpo
+            // 🔚
+            if (s instanceof StmtWhile sw) {
+                String labelInicio = nuevaLabel(); // etiqueta al inicio del ciclo
+                String labelFin    = nuevaLabel(); // etiqueta al fin del ciclo
+
+                // etiqueta de inicio — aquí regresa en cada iteración
+                emitir("label", "-", "-", labelInicio);
+
+                // evalúa la condición
+                String cond = generarExpr(sw.condition);
+
+                // si la condición es falsa sale del ciclo
+                emitir("if_false", cond, "-", labelFin);
+
+                // cuerpo del ciclo
+                for (Stmt st : sw.body) generarStmt(st);
+
+                // regresa al inicio del ciclo
+                emitir("goto", "-", "-", labelInicio);
+
+                // etiqueta de fin
+                emitir("label", "-", "-", labelFin);
+                return;
+            }
+        }
+
+        // GENERA CÓDIGO PARA UNA EXPRESIÓN Y DEVUELVE DÓNDE QUEDÓ EL RESULTADO
+        String generarExpr(Expr e) {
+            if (e == null) return "-";
+
+            // NÚMERO: devuelve el valor directamente como texto
+            if (e instanceof ExprNumber n) {
+                if (n.value % 1 == 0)
+                    return String.valueOf((int) n.value);
+                return String.valueOf(n.value);
+            }
+
+            // STRING: devuelve el texto entre comillas
+            if (e instanceof ExprString es) {
+                return "\"" + es.value + "\"";
+            }
+
+            // BOOLEANO: devuelve true o false
+            if (e instanceof ExprBool eb) {
+                return eb.value ? "true" : "false";
+            }
+
+            // VARIABLE: devuelve el nombre de la variable
+            if (e instanceof ExprVar v) {
+                return v.name;
+            }
+
+            // OPERACIÓN BINARIA: genera cuádruplo y devuelve temporal
+            // Ejemplo: a + b  →  emite (+, a, b, t1) y devuelve "t1"
+            if (e instanceof ExprBinary b) {
+                String izq  = generarExpr(b.left);   // evalúa lado izquierdo
+                String der  = generarExpr(b.right);  // evalúa lado derecho
+                String temp = nuevoTemp();            // crea variable temporal
+
+                // convierte el emoji del operador a símbolo legible
+                String opSimbolo = switch (b.op) {
+                    case "➕"       -> "+";
+                    case "➖"       -> "-";
+                    case "✖️", "✖" -> "*";
+                    case "➗"       -> "/";
+                    case "⚖️"      -> "==";
+                    case "🚫"       -> "!=";
+                    case "🔼"       -> ">";
+                    case "🔽"       -> "<";
+                    case "⏫"       -> ">=";
+                    case "⏬"       -> "<=";
+                    case "🤝"       -> "&&";
+                    case "🔀"       -> "||";
+                    default         -> b.op;
+                };
+
+                emitir(opSimbolo, izq, der, temp);
+                return temp;
+            }
+
+            return "-";
+        }
+
+        // CONVIERTE LA LISTA DE CUÁDRUPLOS A TEXTO PARA MOSTRAR EN PANTALLA
+        String aTexto() {
+            if (cuadruplos.isEmpty()) return "No se generó código intermedio.";
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("CÓDIGO INTERMEDIO — CUÁDRUPLOS\n");
+            sb.append("=".repeat(60)).append("\n");
+            sb.append(String.format("%-4s| %-12s| %-10s| %-10s| %-10s\n",
+                    "No.", "Operación", "Arg 1", "Arg 2", "Resultado"));
+            sb.append("-".repeat(60)).append("\n");
+
+            for (Cuadruplo c : cuadruplos) {
+                sb.append(c.toString()).append("\n");
+            }
+
+            sb.append("=".repeat(60)).append("\n");
+            sb.append("Total de cuádruplos: ").append(cuadruplos.size()).append("\n");
+            return sb.toString();
+        }
+    }
+
     static class ArbolPrinter {
 
         //PUNTO DE ENTRADA
@@ -1922,6 +2152,11 @@ public class EmojiCode {
             errores.setEditable(false);
             salida.setFont(new Font("Console", Font.PLAIN, 14));
 
+            //MOSTRAR CÓDIGO INTERMEDIO
+            JTextArea codigoIntermedioArea = new JTextArea();
+            codigoIntermedioArea.setEditable(false);
+            codigoIntermedioArea.setFont(new Font("Courier New", Font.PLAIN, 13));
+
             //MUESTRA VARIABLES Y VALORES EN TIEMPO DE EJECUCION
             JTable tabla = new JTable(
                     new DefaultTableModel(new Object[]{"Nombre", "Tipo","Linea", "Direccion"}, 0)
@@ -1933,6 +2168,7 @@ public class EmojiCode {
             tabs.add("Tokens", new JScrollPane(tokens));
             tabs.add("Errores", new JScrollPane(errores));
             tabs.add("Tabla", new JScrollPane(tabla));
+            tabs.add("Cód. Intermedio", new JScrollPane(codigoIntermedioArea));
 
             // BOTONES
             JButton open = new JButton("📂 Abrir");
@@ -2038,6 +2274,7 @@ public class EmojiCode {
                 salida.setText("");
                 tokens.setText("");
                 errores.setText("");
+                codigoIntermedioArea.setText("");
                 reporter.errores.clear();
                 //Limpiar tabla de simbolos
                 tablaSimbolos = new TablaSimbolos();
@@ -2093,6 +2330,12 @@ public class EmojiCode {
                                 s.direccion
                             });
                         }
+
+                        // GENERAR CÓDIGO INTERMEDIO
+                        CodigoIntermedio ci = new CodigoIntermedio();
+                        ci.generar(programa);
+                        codigoIntermedioArea.setText(ci.aTexto());
+
                         salida.append("COMPILACIÓN EXITOSA\n");                       
                     }
                     
