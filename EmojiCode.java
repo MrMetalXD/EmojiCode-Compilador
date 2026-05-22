@@ -1,3 +1,5 @@
+package codigo;
+
 //Librerias
 
 import java.awt.*;
@@ -1783,6 +1785,8 @@ public class EmojiCode {
             return 0;
         }
     }
+    
+    
 
     //IMPRESOR DEL ARBOL DE DERIVACION
     // =====================================================
@@ -1791,6 +1795,8 @@ public class EmojiCode {
     // Formato: (operación, argumento1, argumento2, resultado)
     // =====================================================
     static class CodigoIntermedio {
+        
+        
 
         // REPRESENTA UN CUÁDRUPLO: (op, arg1, arg2, resultado)
         static class Cuadruplo {
@@ -2014,6 +2020,242 @@ public class EmojiCode {
             return sb.toString();
         }
     }
+    
+    // OPTIMIZACION DE CÓDIGO INTERMEDIO
+    static class OptimizacionCodigo {
+        
+         boolean esTemporal(String valor) {
+            return valor != null && valor.matches("t[0-9]+");
+        }
+  
+        boolean esOperacionAritmetica(String op) {
+            return op.equals("+") || op.equals("-") || op.equals("*") || op.equals("/");
+        }
+
+        boolean esNumero(String s) {
+            if (s == null) {
+                return false;
+            }
+
+            try {
+                Double.parseDouble(s);
+                return true;
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+
+        String formatearNumero(double n) {
+            if (n % 1 == 0) {
+                return String.valueOf((int) n);
+            }
+            return String.valueOf(n);
+        }
+
+        List<CodigoIntermedio.Cuadruplo> optimizar(List<CodigoIntermedio.Cuadruplo> entrada) {
+
+            List<CodigoIntermedio.Cuadruplo> primeraPasada = new ArrayList<>();
+
+            for (CodigoIntermedio.Cuadruplo c : entrada) {
+
+                // 1. Eliminar asignaciones inútiles
+                // Ejemplo: x = x
+                if (c.op.equals("=") && c.arg1.equals(c.result)) {
+                    continue;
+                }
+
+                // 2. Plegado de constantes
+                // Ejemplo: 2 + 3 -> 5
+                if (esOperacionAritmetica(c.op) && esNumero(c.arg1) && esNumero(c.arg2)) {
+
+                    double a = Double.parseDouble(c.arg1);
+                    double b = Double.parseDouble(c.arg2);
+                    double r = 0;
+
+                    switch (c.op) {
+                        case "+" ->
+                            r = a + b;
+                        case "-" ->
+                            r = a - b;
+                        case "*" ->
+                            r = a * b;
+                        case "/" -> {
+                            if (b == 0) {
+                                primeraPasada.add(c);
+                                continue;
+                            }
+                            r = a / b;
+                        }
+                    }
+
+                    primeraPasada.add(new CodigoIntermedio.Cuadruplo(
+                            c.numero,
+                            "=",
+                            formatearNumero(r),
+                            "-",
+                            c.result
+                    ));
+
+                    continue;
+                }
+
+                // 3. Simplificación algebraica
+                CodigoIntermedio.Cuadruplo simplificado = simplificarAlgebra(c);
+                primeraPasada.add(simplificado);
+            }
+
+            // 4. Segunda pasada: eliminar temporales innecesarios
+            List<CodigoIntermedio.Cuadruplo> segundaPasada = eliminarTemporales(primeraPasada);
+
+            // 5. Renumerar cuádruplos finales
+            renumerar(segundaPasada);
+
+            return segundaPasada;
+        }
+       
+       
+
+        List<CodigoIntermedio.Cuadruplo> eliminarTemporales(List<CodigoIntermedio.Cuadruplo> entrada) {
+
+            List<CodigoIntermedio.Cuadruplo> salida = new ArrayList<>();
+
+            int i = 0;
+
+            while (i < entrada.size()) {
+
+                CodigoIntermedio.Cuadruplo actual = entrada.get(i);
+
+                // Buscar el patrón:
+                // 1. (=, valor, -, t1)
+                // 2. (=, t1, -, x)
+                //
+                // Se reemplaza por:
+                // (=, valor, -, x)
+                if (i + 1 < entrada.size()) {
+
+                    CodigoIntermedio.Cuadruplo siguiente = entrada.get(i + 1);
+
+                    if (actual.op.equals("=")
+                            && siguiente.op.equals("=")
+                            && esTemporal(actual.result)
+                            && siguiente.arg1.equals(actual.result)) {
+
+                        CodigoIntermedio.Cuadruplo optimizado = new CodigoIntermedio.Cuadruplo(
+                                actual.numero,
+                                "=",
+                                actual.arg1,
+                                "-",
+                                siguiente.result
+                        );
+
+                        salida.add(optimizado);
+
+                        // Saltar los dos cuádruplos originales
+                        i += 2;
+                        continue;
+                    }
+                }
+
+                salida.add(actual);
+                i++;
+            }
+
+            return salida;
+        }
+
+      
+        CodigoIntermedio.Cuadruplo simplificarAlgebra(CodigoIntermedio.Cuadruplo c) {
+
+            // x + 0 = x
+            if (c.op.equals("+") && c.arg2.equals("0")) {
+                return new CodigoIntermedio.Cuadruplo(
+                        c.numero, "=", c.arg1, "-", c.result
+                );
+            }
+
+            // 0 + x = x
+            if (c.op.equals("+") && c.arg1.equals("0")) {
+                return new CodigoIntermedio.Cuadruplo(
+                        c.numero, "=", c.arg2, "-", c.result
+                );
+            }
+
+            // x - 0 = x
+            if (c.op.equals("-") && c.arg2.equals("0")) {
+                return new CodigoIntermedio.Cuadruplo(
+                        c.numero, "=", c.arg1, "-", c.result
+                );
+            }
+
+            // x * 1 = x
+            if (c.op.equals("*") && c.arg2.equals("1")) {
+                return new CodigoIntermedio.Cuadruplo(
+                        c.numero, "=", c.arg1, "-", c.result
+                );
+            }
+
+            // 1 * x = x
+            if (c.op.equals("*") && c.arg1.equals("1")) {
+                return new CodigoIntermedio.Cuadruplo(
+                        c.numero, "=", c.arg2, "-", c.result
+                );
+            }
+
+            // x * 0 = 0
+            if (c.op.equals("*") && c.arg2.equals("0")) {
+                return new CodigoIntermedio.Cuadruplo(
+                        c.numero, "=", "0", "-", c.result
+                );
+            }
+
+            // 0 * x = 0
+            if (c.op.equals("*") && c.arg1.equals("0")) {
+                return new CodigoIntermedio.Cuadruplo(
+                        c.numero, "=", "0", "-", c.result
+                );
+            }
+
+            // x / 1 = x
+            if (c.op.equals("/") && c.arg2.equals("1")) {
+                return new CodigoIntermedio.Cuadruplo(
+                        c.numero, "=", c.arg1, "-", c.result
+                );
+            }
+
+            return c;
+        }
+
+        void renumerar(List<CodigoIntermedio.Cuadruplo> lista) {
+            int n = 1;
+            for (CodigoIntermedio.Cuadruplo c : lista) {
+                c.numero = n++;
+            }
+        }
+
+        String aTexto(List<CodigoIntermedio.Cuadruplo> lista) {
+
+            if (lista.isEmpty()) {
+                return "No se generó código optimizado.";
+            }
+
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("CÓDIGO INTERMEDIO OPTIMIZADO\n");
+            sb.append("=".repeat(60)).append("\n");
+            sb.append(String.format("%-4s| %-12s| %-10s| %-10s| %-10s\n",
+                    "No.", "Operación", "Arg 1", "Arg 2", "Resultado"));
+            sb.append("-".repeat(60)).append("\n");
+
+            for (CodigoIntermedio.Cuadruplo c : lista) {
+                sb.append(c.toString()).append("\n");
+            }
+
+            sb.append("=".repeat(60)).append("\n");
+            sb.append("Total de cuádruplos optimizados: ").append(lista.size()).append("\n");
+
+            return sb.toString();
+        }
+    }
 
     static class ArbolPrinter {
 
@@ -2156,6 +2398,11 @@ public class EmojiCode {
             JTextArea codigoIntermedioArea = new JTextArea();
             codigoIntermedioArea.setEditable(false);
             codigoIntermedioArea.setFont(new Font("Courier New", Font.PLAIN, 13));
+            
+            //MOSTRAR OPTIMIZACION DE CODIGO
+            JTextArea codigoOptimizadoArea = new JTextArea();
+            codigoOptimizadoArea.setEditable(false);
+            codigoOptimizadoArea.setFont(new Font("Courier New", Font.PLAIN, 13));
 
             //MUESTRA VARIABLES Y VALORES EN TIEMPO DE EJECUCION
             JTable tabla = new JTable(
@@ -2169,6 +2416,7 @@ public class EmojiCode {
             tabs.add("Errores", new JScrollPane(errores));
             tabs.add("Tabla", new JScrollPane(tabla));
             tabs.add("Cód. Intermedio", new JScrollPane(codigoIntermedioArea));
+            tabs.add("Cód. Optimizado", new JScrollPane(codigoOptimizadoArea));
 
             // BOTONES
             JButton open = new JButton("📂 Abrir");
@@ -2281,6 +2529,8 @@ public class EmojiCode {
                 // ⛔ invalidar árbol antes de ejecutar
                 ultimoPrograma[0] = null;
                 arbol.setEnabled(false);
+                codigoIntermedioArea.setText("");
+                codigoOptimizadoArea.setText("");
                 
                 
 
@@ -2335,6 +2585,12 @@ public class EmojiCode {
                         CodigoIntermedio ci = new CodigoIntermedio();
                         ci.generar(programa);
                         codigoIntermedioArea.setText(ci.aTexto());
+                        
+                        //OPTIMIZAR CODIGO INTERMEDIO
+                        // OPTIMIZAR CÓDIGO INTERMEDIO
+                        OptimizacionCodigo opt = new OptimizacionCodigo();
+                        List<CodigoIntermedio.Cuadruplo> optimizados = opt.optimizar(ci.cuadruplos);
+                        codigoOptimizadoArea.setText(opt.aTexto(optimizados));
 
                         salida.append("COMPILACIÓN EXITOSA\n");                       
                     }
