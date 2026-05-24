@@ -20,7 +20,7 @@
 💬 WHILE para contar
 🔄 :contador: ⏫ 15
     📢 :contador:
-    🔧 :contador: :contador: ➖ 1
+    🔧 :contador: :contador: ➕ 1
 🔚
 
 📢 :total:
